@@ -329,13 +329,13 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
 
   // UNTUK STOK & INPUT (Keduanya butuh data stok)
   if ((name === 'stok' || name === 'input') && !dataLoaded.stok) {
-    // Jika di tab stok, tampilkan loading di tabel
-    const tbody = document.getElementById('tableStok');
-    if (name === 'stok' && tbody) {
-      tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data Stok...</td></tr>';
+    // Tampilkan loading hanya jika kita berada di tab Stok
+    if (name === 'stok') {
+        const tbody = document.getElementById('tableStok');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data...</td></tr>';
     }
     loadStok(); 
-  }
+}
       
     }
 

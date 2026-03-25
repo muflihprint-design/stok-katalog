@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Muflih Print - Inventory Bulk Action</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); min-height: 100vh; font-family: sans-serif; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 1rem; }
+    .nav-btn.active { color: #6366f1; border-top: 2px solid #6366f1; }
+    .badge-masuk { background: #dcfce7; color: #166534; }
+    .badge-keluar { background: #fee2e2; color: #991b1b; }
+    
+    #topProgressBar {
+      position: fixed; top: 0; left: 0; width: 0%; height: 3px;
+      background: #6366f1; z-index: 10000; transition: width 0.3s ease;
+    }
+
+    input[type="checkbox"] {
+      width: 20px; height: 20px; accent-color: #6366f1; cursor: pointer;
+    }
+
+    .bulk-action-bar {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      width: calc(100% - 2rem); max-width: 448px;
+      background: #1e293b; color: white; padding: 12px 20px;
+      border-radius: 1rem; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); z-index: 100;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .bulk-action-bar.hidden { display: none !important; transform: translateX(-50%) translateY(100px); opacity: 0; }
+    
+    button:disabled, input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed !important;
+    }
+
+    .item-processing {
+      opacity: 0.6;
+      pointer-events: none;
+      position: relative;
+    }
+    
+    .loading-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.4); z-index: 10; border-radius: 1rem;
+    }
+
+/* Catalog Styles */
+    #catalogOverlay {
+      position: fixed; inset: 0; background: #f8fafc; z-index: 1000;
+      display: flex; flex-direction: column; transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    #catalogOverlay.active { transform: translateY(0); }
+
+  </style>
+</head>
+<body class="p-4 pb-24 text-slate-800">
+
+  <div id="topProgressBar"></div>
+
+  <!-- Notifikasi Toast -->
+  <div id="statusToast" class="fixed top-4 right-4 left-4 bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl z-[9999] transform -translate-y-24 transition-transform duration-300 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-circle-notch animate-spin" id="toastIcon"></i>
+      <span id="toastMsg" class="text-xs font-bold">Memproses...</span>
+    </div>
+  </div>
+
+  <div class="mb-6 text-center text-white">
+    <h1 class="text-xl font-bold tracking-widest uppercase">Muflih Print</h1>
+    <p class="text-xs opacity-60">Inventory System - Bulk Management</p>
+  </div>
+
+  <div id="main-content" class="max-w-md mx-auto">
+    
+    <!-- TAB: INPUT -->
+    <div id="tab-input" class="glass-card p-5 shadow-xl">
+      <h2 class="font-bold mb-4 flex items-center text-indigo-700"><i class="fas fa-plus-circle mr-2"></i> Transaksi Baru</h2>
+      
+      <div class="mb-4">
+        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Jenis Transaksi</label>
+        <select id="inputJenisGlobal" class="mt-1 block w-full p-3 bg-indigo-50 border-none font-bold text-indigo-700 rounded-lg">
+          <option value="Barang Masuk">Barang Masuk</option>
+          <option value="Barang Keluar">Barang Keluar</option>
+        </select>
+      </div>
+
+      <form id="stokForm" class="space-y-4">
+        <div id="itemContainer" class="space-y-3"></div>
+        <button type="button" id="btnAddItem" onclick="addItemRow()" class="w-full py-2 border-2 border-dashed border-indigo-200 text-indigo-500 rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center justify-center gap-2">
+          <i class="fas fa-plus"></i> TAMBAH BARANG LAIN
+        </button>
+        <div class="pt-4">
+          <button type="submit" id="btnSubmitForm" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
+            <i class="fas fa-save"></i> SIMPAN SEMUA KE ANTRIAN
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- TAB: ANTRIAN -->
+    <div id="tab-antrian" class="hidden space-y-3">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="font-bold text-white flex items-center">
+          <i class="fas fa-tasks mr-2"></i> Antrian Approval
+        </h2>
+        <div class="flex items-center gap-2">
+           <button id="btnSelectAll" onclick="toggleSelectAll()" class="text-[10px] bg-white/10 text-white px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/20">
+             Pilih Semua
+           </button>
+        </div>
+      </div>
+      
+      <div id="listAntrian" class="space-y-3"></div>
+    </div>
+
+    <!-- TAB: RIWAYAT -->
+    <div id="tab-riwayat" class="hidden space-y-4">
+      <div class="glass-card p-4 shadow-md">
+        <div class="relative mb-3">
+          <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+          <input type="text" id="searchRiwayat" onkeyup="filterRiwayat()" class="w-full pl-10 p-2 bg-gray-100 border-none rounded-lg text-sm" placeholder="Cari barang...">
+        </div>
+        <div class="flex items-center gap-2 text-[10px] mb-3">
+          <input type="date" id="dateStart" onchange="filterRiwayat()" class="border rounded p-1 w-full text-gray-600">
+          <span>s/d</span>
+          <input type="date" id="dateEnd" onchange="filterRiwayat()" class="border rounded p-1 w-full text-gray-600">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="setFilterDate('today')" id="btnFilterToday" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-[10px] font-bold transition">HARI INI</button>
+          <button onclick="setFilterDate('month')" id="btnFilterMonth" class="flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition">BULAN INI</button>
+          <button onclick="setFilterDate('all')" id="btnFilterAll" class="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-[10px] font-bold hover:bg-gray-200 transition">SEMUA</button>
+        </div>
+      </div>
+      <div id="listRiwayat" class="space-y-2"></div>
+<div id="tab-riwayat" class="hidden space-y-4">
+  <div id="listRiwayat" class="space-y-2"></div>
+
+  <div id="paginationRiwayat" class="flex items-center justify-between py-4 hidden">
+    <button onclick="changePage(-1)" id="btnPrev" class="px-4 py-2 bg-white border border-indigo-200 text-indigo-600 rounded-lg text-xs font-bold disabled:opacity-30">
+      <i class="fas fa-chevron-left mr-1"></i> SEBELUMNYA
+    </button>
+    <span id="pageIndicator" class="text-[10px] font-bold text-white uppercase tracking-widest">Hal 1</span>
+    <button onclick="changePage(1)" id="btnNext" class="px-4 py-2 bg-white border border-indigo-200 text-indigo-600 rounded-lg text-xs font-bold disabled:opacity-30">
+      BERIKUTNYA <i class="fas fa-chevron-right ml-1"></i>
+    </button>
+  </div>
+</div>
+    </div>
+
+    <!-- TAB: STOK -->
+<div id="tab-stok" class="hidden">
+  <div class="flex justify-between items-center mb-3">
+    <h3 class="text-white font-bold text-sm">Posisi Stok Terkini</h3>
+    <button onclick="openCatalog()" class="bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition">
+      <i class="fas fa-book-open"></i> LIHAT KATALOG
+    </button>
+  </div>
+
+  <div class="glass-card p-3 mb-3 shadow-md">
+    <div class="relative">
+      <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+      <input type="text" id="searchStok" onkeyup="filterTableStok()" class="w-full pl-10 p-2 bg-gray-100 border-none rounded-lg text-sm" placeholder="Cari nama stok...">
+    </div>
+  </div>
+
+  <div class="glass-card overflow-hidden">
+    <table class="w-full" id="mainTableStok">
+      <thead class="bg-gray-100 text-[10px] uppercase text-gray-600">
+        <tr>
+          <th class="px-4 py-3 text-left">Produk</th>
+          <th class="px-4 py-3 text-right">Sisa Stok</th>
+        </tr>
+      </thead>
+      <tbody id="tableStok" class="divide-y divide-gray-200 bg-white"></tbody>
+    </table>
+  </div>
+</div>
+
+  </div>
+
+ <!-- CATALOG OVERLAY -->
+  <div id="catalogOverlay">
+    <div class="bg-white p-4 flex items-center justify-between border-b sticky top-0 z-10 shadow-sm">
+      <div class="flex items-center gap-3">
+        <button onclick="closeCatalog()" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div>
+          <h2 class="font-black text-slate-800 uppercase tracking-tight">Katalog Blangko</h2>
+          <p class="text-[9px] text-gray-500 uppercase font-bold">Daftar Produk & Harga</p>
+        </div>
+      </div>
+      <div class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold" id="catalogCount">0 Item</div>
+    </div>
+    
+    <div class="flex-1 overflow-y-auto p-4">
+      <div class="relative mb-4">
+        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        <input type="text" id="searchCatalog" onkeyup="filterCatalog()" class="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm" placeholder="Cari nama blangko...">
+      </div>
+
+      <div id="catalogGrid" class="grid grid-cols-2 gap-3 pb-8">
+        <!-- Catalog items here -->
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Bulk Action Bar -->
+  <div id="bulkActionBar" class="bulk-action-bar hidden">
+    <div class="text-xs">
+      <span id="selectedCount" class="font-black text-indigo-400">0</span> Item dipilih
+    </div>
+    <div class="flex gap-2">
+      <button id="btnBulkDelete" onclick="bulkDelete()" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
+        HAPUS
+      </button>
+      <button id="btnBulkApprove" onclick="bulkApprove()" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
+        APPROVE SEMUA
+      </button>
+    </div>
+  </div>
+
+  <datalist id="produkList"></datalist>
+
+  <!-- Bottom Nav -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-2 flex justify-between shadow-2xl z-50">
+    <button onclick="showTab('input')" id="nav-input" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2 active">
+      <i class="fas fa-plus-square text-lg"></i><span class="text-[9px] mt-1">Input</span>
+    </button>
+    <button onclick="showTab('antrian')" id="nav-antrian" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
+      <i class="fas fa-hourglass-half text-lg"></i><span class="text-[9px] mt-1">Antrian</span>
+    </button>
+    <button onclick="showTab('riwayat')" id="nav-riwayat" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
+      <i class="fas fa-history text-lg"></i><span class="text-[9px] mt-1">Riwayat</span>
+    </button>
+    <button onclick="showTab('stok')" id="nav-stok" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
+      <i class="fas fa-box text-lg"></i><span class="text-[9px] mt-1">Stok</span>
+    </button>
+  </nav>
+
+  <script>
+    const SUPABASE_URL = "https://zqxeoveanevsvynptckm.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVvdmVhbmV2c3Z5bnB0Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzUzODEsImV4cCI6MjA4OTg1MTM4MX0.eeIaytpW1wtWPJc2FbhufkDkhONUt9yypTZU4dTVmsM";
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let masterRiwayat = [];
+ let masterCatalog = [];
+    let currentTab = 'input';
+    let dataLoaded = { antrian: false, riwayat: false, stok: false };
+    let selectedAntrianIds = [];
+    let isProcessing = false;
+    let itemsInProcess = []; 
+let currentPage = 1;
+const itemsPerPage = 5;
+let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
+
+    function setProcessingState(state) {
+      isProcessing = state;
+      const buttons = ['btnSubmitForm', 'btnBulkDelete', 'btnBulkApprove', 'btnSelectAll', 'btnAddItem'];
+      buttons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = state;
+      });
+      if (state) {
+        document.querySelectorAll('#listAntrian input, #listAntrian button').forEach(el => el.disabled = true);
+      }
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('statusToast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+      toastMsg.innerText = msg;
+      toast.classList.remove('-translate-y-24');
+      toast.classList.add('translate-y-0');
+      if(isError) {
+        toast.classList.remove('bg-indigo-600'); toast.classList.add('bg-red-600');
+        toastIcon.className = 'fas fa-exclamation-triangle';
+        setTimeout(() => hideToast(), 4000);
+      } else {
+        toast.classList.remove('bg-red-600'); toast.classList.add('bg-indigo-600');
+        toastIcon.className = 'fas fa-circle-notch animate-spin';
+      }
+    }
+
+    function hideToast() {
+      document.getElementById('statusToast').classList.replace('translate-y-0', '-translate-y-24');
+    }
+
+    function updateProgress(percent) {
+      document.getElementById('topProgressBar').style.width = percent + '%';
+    }
+
+    function showTab(name) {
+      if (isProcessing) return;
+      currentTab = name;
+      ['input', 'antrian', 'riwayat', 'stok'].forEach(t => {
+        document.getElementById('tab-'+t)?.classList.add('hidden');
+        document.getElementById('nav-'+t)?.classList.remove('active', 'text-indigo-600');
+      });
+      document.getElementById('tab-'+name).classList.remove('hidden');
+      document.getElementById('nav-'+name).classList.add('active', 'text-indigo-600');
+      
+      if (name !== 'antrian') {
+        selectedAntrianIds = [];
+        updateBulkBar();
+      }
+
+      if (name === 'antrian' && !dataLoaded.antrian) loadAntrian();
+      if (name === 'riwayat' && !dataLoaded.riwayat) loadRiwayat();
+      if (name === 'stok' || name === 'input') loadStok(); 
+    }
+
+    function addItemRow() {
+  const container = document.getElementById('itemContainer');
+  const rowId = Date.now();
+  const div = document.createElement('div');
+  div.className = "flex gap-2 items-end group animate-in slide-in-from-top-2 duration-200";
+  div.id = `row-${rowId}`;
+  div.innerHTML = `
+    <div class="flex-1">
+      <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-tight">Nama Barang</label>
+      <input type="text" 
+             name="namaBarang" 
+             list="produkList" 
+             oninput="this.value = this.value.toUpperCase()" 
+             class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm uppercase" 
+             placeholder="KETIK NAMA..." 
+             required>
+    </div>
+    <div class="w-24">
+      <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-tight">Jumlah</label>
+      <input type="number" name="jumlahBarang" class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm" placeholder="0" required>
+    </div>
+    <button type="button" onclick="removeItemRow('${rowId}')" class="p-2.5 text-red-300 hover:text-red-500 transition mb-[2px]">
+      <i class="fas fa-times-circle"></i>
+    </button>
+  `;
+  container.appendChild(div);
+}
+
+    function removeItemRow(id) {
+      if (isProcessing) return;
+      const row = document.getElementById(`row-${id}`);
+      if (document.querySelectorAll('#itemContainer > div').length > 1) {
+        row.remove();
+      } else {
+        showToast("Minimal 1 barang", true);
+      }
+    }
+
+    document.getElementById('stokForm').onsubmit = async function(e) {
+      e.preventDefault();
+      if (isProcessing) return;
+      
+      setProcessingState(true);
+      const rows = document.querySelectorAll('#itemContainer > div');
+      const jenis = document.getElementById('inputJenisGlobal').value;
+      
+      showToast(`Menyimpan ${rows.length} item...`);
+      updateProgress(10);
+      
+      try {
+        let count = 0;
+        for (let row of rows) {
+          const namaBarang = row.querySelector('[name="namaBarang"]').value.trim().toUpperCase();
+          const jumlah = parseInt(row.querySelector('[name="jumlahBarang"]').value);
+          
+          if (!namaBarang || isNaN(jumlah)) continue;
+          
+          // Fixed check: Selection of 'nama' instead of non-existent 'id'
+          const { data: existingProduct, error: fetchErr } = await _supabase
+            .from('stok')
+            .select('nama')
+            .eq('nama', namaBarang)
+            .maybeSingle();
+
+          if (fetchErr) throw fetchErr;
+
+          if (!existingProduct) {
+            const { error: insertErr } = await _supabase
+              .from('stok')
+              .insert([{ nama: namaBarang, sisa: 0 }]);
+            
+            if (insertErr) throw insertErr;
+          }
+
+          const { error: antrianErr } = await _supabase
+            .from('antrian')
+            .insert([{ jenis, nama_barang: namaBarang, jumlah }]);
+          
+          if (antrianErr) throw antrianErr;
+          
+          count++;
+          updateProgress(10 + ((count / rows.length) * 80));
+        }
+        
+        document.getElementById('itemContainer').innerHTML = '';
+        addItemRow();
+        updateProgress(100);
+        showToast('Berhasil disimpan ke antrian!');
+        
+        dataLoaded.antrian = false;
+        dataLoaded.stok = false; 
+
+        setTimeout(() => { 
+          hideToast(); 
+          updateProgress(0); 
+          setProcessingState(false);
+          showTab('antrian'); 
+        }, 800);
+      } catch (err) { 
+        console.error(err);
+        showToast('Gagal: ' + err.message, true); 
+        updateProgress(0); 
+        setProcessingState(false);
+      }
+    };
+
+    async function loadAntrian() {
+      const container = document.getElementById('listAntrian');
+      try {
+        const { data, error } = await _supabase.from('antrian').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        dataLoaded.antrian = true;
+        renderAntrian(data);
+      } catch (err) { 
+        container.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-700 text-xs">Error: ${err.message}</div>`; 
+      }
+    }
+
+    function renderAntrian(data) {
+      const container = document.getElementById('listAntrian');
+      container.innerHTML = '';
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div class="glass-card p-8 text-center text-gray-500 text-sm">Tidak ada antrian transaksi</div>';
+        selectedAntrianIds = [];
+        updateBulkBar();
+        return;
+      }
+      data.forEach(item => {
+        const isChecked = selectedAntrianIds.includes(item.id);
+        const inProcess = itemsInProcess.includes(item.id);
+        const div = document.createElement('div');
+        div.className = `glass-card p-4 shadow-sm border-l-4 border-indigo-500 flex gap-4 items-center transition-all ${isChecked ? 'ring-2 ring-indigo-500 ring-inset' : ''} ${inProcess ? 'item-processing' : ''}`;
+        
+        div.innerHTML = `
+          ${inProcess ? '<div class="loading-overlay"><i class="fas fa-circle-notch animate-spin text-indigo-600 text-xl"></i></div>' : ''}
+          <div class="flex-shrink-0">
+            <input type="checkbox" onchange="toggleItemSelection(${item.id})" ${isChecked ? 'checked' : ''} ${(isProcessing || inProcess) ? 'disabled' : ''}>
+          </div>
+          <div class="flex-1">
+            <div class="flex justify-between text-[9px] mb-1 uppercase text-gray-500">
+              <span>${new Date(item.created_at).toLocaleTimeString('id-ID')} - ${new Date(item.created_at).toLocaleDateString('id-ID')}</span>
+              <span class="font-bold ${item.jenis === 'Barang Masuk' ? 'text-green-600' : 'text-red-600'}">${item.jenis}</span>
+            </div>
+            <div class="font-bold text-slate-800 leading-tight">${item.nama_barang}</div>
+            <div class="text-xs text-indigo-600 font-bold mt-1">Jumlah: ${item.jumlah}</div>
+          </div>
+          <div class="flex flex-col gap-1">
+             <button onclick="approveSingle(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
+             <button onclick="hapusAntrian(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+      updateBulkBar();
+    }
+
+    function toggleItemSelection(id) {
+      if (isProcessing || itemsInProcess.includes(id)) return;
+      const idx = selectedAntrianIds.indexOf(id);
+      if (idx > -1) selectedAntrianIds.splice(idx, 1);
+      else selectedAntrianIds.push(id);
+      renderAntrianFromState();
+    }
+
+    async function toggleSelectAll() {
+      if (isProcessing) return;
+      const { data } = await _supabase.from('antrian').select('id');
+      const availableIds = data.map(d => d.id).filter(id => !itemsInProcess.includes(id));
+      
+      if (selectedAntrianIds.length >= availableIds.length) {
+        selectedAntrianIds = [];
+      } else {
+        selectedAntrianIds = availableIds;
+      }
+      renderAntrianFromState();
+    }
+
+    async function renderAntrianFromState() {
+      const { data } = await _supabase.from('antrian').select('*').order('created_at', { ascending: false });
+      renderAntrian(data);
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById('bulkActionBar');
+      const countEl = document.getElementById('selectedCount');
+      if (selectedAntrianIds.length > 0) {
+        bar.classList.remove('hidden');
+        countEl.innerText = selectedAntrianIds.length;
+      } else {
+        bar.classList.add('hidden');
+      }
+    }
+
+    async function bulkApprove() {
+      if (isProcessing || !confirm(`Approve ${selectedAntrianIds.length} transaksi sekaligus?`)) return;
+      
+      const idsToProcess = [...selectedAntrianIds];
+      itemsInProcess = [...itemsInProcess, ...idsToProcess];
+      selectedAntrianIds = [];
+      
+      setProcessingState(true);
+      renderAntrianFromState(); 
+      
+      showToast(`Memproses ${idsToProcess.length} item...`);
+      updateProgress(10);
+      
+      try {
+        let count = 0;
+        for (const id of idsToProcess) {
+          await processApprove(id);
+          count++;
+          updateProgress(10 + ((count / idsToProcess.length) * 90));
+        }
+        
+        itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
+        showToast('Semua berhasil di-Approve!');
+        dataLoaded.stok = false;
+        dataLoaded.riwayat = false;
+        
+        setTimeout(() => { 
+          hideToast(); updateProgress(0); setProcessingState(false); loadAntrian(); 
+        }, 800);
+      } catch (err) { 
+        itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
+        showToast('Gagal: ' + err.message, true); updateProgress(0); setProcessingState(false);
+        loadAntrian();
+      }
+    }
+
+    async function bulkDelete() {
+      if (isProcessing || !confirm(`Hapus ${selectedAntrianIds.length} antrian sekaligus?`)) return;
+      
+      const idsToDelete = [...selectedAntrianIds];
+      itemsInProcess = [...itemsInProcess, ...idsToDelete];
+      selectedAntrianIds = [];
+      
+      setProcessingState(true);
+      renderAntrianFromState();
+      
+      showToast(`Menghapus ${idsToDelete.length} item...`);
+      try {
+        await _supabase.from('antrian').delete().in('id', idsToDelete);
+        itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
+        
+        showToast('Berhasil dihapus');
+        setTimeout(() => { 
+          hideToast(); setProcessingState(false); loadAntrian(); 
+        }, 800);
+      } catch (err) { 
+        itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
+        showToast('Gagal: ' + err.message, true); setProcessingState(false);
+        loadAntrian();
+      }
+    }
+
+    async function approveSingle(id) {
+      if (isProcessing || itemsInProcess.includes(id)) return;
+      
+      itemsInProcess.push(id);
+      setProcessingState(true);
+      renderAntrianFromState();
+      
+      showToast('Memproses...');
+      try {
+        await processApprove(id);
+        itemsInProcess = itemsInProcess.filter(i => i !== id);
+        showToast('Berhasil!');
+        dataLoaded.stok = false;
+        dataLoaded.riwayat = false;
+        setTimeout(() => { 
+          hideToast(); setProcessingState(false); loadAntrian(); 
+        }, 800);
+      } catch (err) { 
+        itemsInProcess = itemsInProcess.filter(i => i !== id);
+        showToast('Gagal: ' + err.message, true); setProcessingState(false);
+        loadAntrian();
+      }
+    }
+
+    async function processApprove(id) {
+      const { data: item } = await _supabase.from('antrian').select('*').eq('id', id).single();
+      if (!item) return;
+      
+      const change = item.jenis === 'Barang Masuk' ? item.jumlah : -item.jumlah;
+      const { data: currentStok } = await _supabase.from('stok').select('*').eq('nama', item.nama_barang).maybeSingle();
+      
+      if (currentStok) {
+        await _supabase.from('stok').update({ 
+            sisa: (currentStok.sisa || 0) + change, 
+            updated_at: new Date().toISOString() 
+        }).eq('nama', item.nama_barang);
+      } else {
+        await _supabase.from('stok').insert([{ nama: item.nama_barang, sisa: change }]);
+      }
+      await _supabase.from('riwayat').insert([{ jenis: item.jenis, nama_barang: item.nama_barang, jumlah: item.jumlah }]);
+      await _supabase.from('antrian').delete().eq('id', id);
+    }
+
+    async function hapusAntrian(id) {
+      if(isProcessing || itemsInProcess.includes(id) || !confirm('Hapus antrian?')) return;
+      
+      itemsInProcess.push(id);
+      setProcessingState(true);
+      renderAntrianFromState();
+      
+      try {
+        await _supabase.from('antrian').delete().eq('id', id);
+        itemsInProcess = itemsInProcess.filter(i => i !== id);
+        showToast('Terhapus');
+        setTimeout(() => {
+          hideToast(); setProcessingState(false); loadAntrian();
+        }, 500);
+      } catch (err) { 
+        itemsInProcess = itemsInProcess.filter(i => i !== id);
+        showToast('Gagal: ' + err.message, true); setProcessingState(false);
+        loadAntrian();
+      }
+    }
+
+    async function loadRiwayat() {
+  try {
+    const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });
+    masterRiwayat = data || [];
+    dataLoaded.riwayat = true;
+    currentPage = 1; // Reset ke halaman pertama saat load baru
+    setFilterDate('today'); 
+  } catch (err) { console.error(err); }
+}
+
+    function renderRiwayat(items) {
+      const container = document.getElementById('listRiwayat');
+      container.innerHTML = items.length === 0 ? '<div class="glass-card p-4 text-center text-gray-400 text-xs italic">Tidak ada riwayat</div>' : '';
+      
+      items.forEach(row => {
+        const dateObj = new Date(row.created_at);
+        // Format: 25/03/2026
+        const formattedDate = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        // Format: 15.51
+        const formattedTime = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+        const div = document.createElement('div');
+        div.className = `glass-card p-3 text-sm border-l-4 ${row.jenis === 'Barang Masuk' ? 'border-green-500' : 'border-red-500'}`;
+        div.innerHTML = `
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-indigo-600 font-bold">${formattedDate}</span>
+              <span class="text-[10px] text-gray-400 font-mono">${formattedTime}</span>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${row.jenis === 'Barang Masuk' ? 'badge-masuk' : 'badge-keluar'}">${row.jenis}</span>
+          </div>
+          <div class="flex justify-between items-end">
+            <div class="font-bold text-slate-700 leading-tight">${row.nama_barang}</div>
+            <div class="font-black text-lg text-indigo-700">${row.jumlah}</div>
+          </div>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function loadStok() {
+      try {
+        const { data } = await _supabase.from('stok').select('*').order('nama', { ascending: true });
+        dataLoaded.stok = true;
+        const tbody = document.getElementById('tableStok');
+        if (tbody) tbody.innerHTML = '';
+        
+        const dl = document.getElementById('produkList');
+        dl.innerHTML = '';
+        
+        data.forEach(item => {
+          if (tbody) {
+            tbody.innerHTML += `
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-4 text-sm font-medium text-slate-700">${item.nama}</td>
+                <td class="px-4 py-4 text-right font-bold text-sm ${item.sisa < 5 ? 'text-red-600 animate-pulse' : 'text-slate-900'}">
+                  ${item.sisa}
+                </td>
+              </tr>`;
+          }
+          let opt = document.createElement('option'); 
+          opt.value = item.nama; 
+          dl.appendChild(opt);
+        });
+      } catch (err) { console.error(err); }
+    }
+
+    function setFilterDate(type) {
+      const now = new Date();
+      const btns = { today: 'btnFilterToday', month: 'btnFilterMonth', all: 'btnFilterAll' };
+      Object.values(btns).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.className = "flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-lg text-[10px] font-bold";
+      });
+      
+      if (type === 'today') {
+        const s = now.toISOString().split('T')[0];
+        document.getElementById('dateStart').value = s;
+        document.getElementById('dateEnd').value = s;
+      } else if (type === 'month') {
+        document.getElementById('dateStart').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        document.getElementById('dateEnd').value = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      } else {
+        document.getElementById('dateStart').value = ''; document.getElementById('dateEnd').value = '';
+      }
+      const activeBtn = document.getElementById(btns[type]);
+      if (activeBtn) activeBtn.className = "flex-1 bg-indigo-600 text-white py-2 rounded-lg text-[10px] font-bold";
+      filterRiwayat();
+    }
+
+    function filterRiwayat() {
+  const q = document.getElementById('searchRiwayat').value.toLowerCase();
+  const s = document.getElementById('dateStart').value;
+  const e = document.getElementById('dateEnd').value;
+  
+  // 1. Filter data dari masterRiwayat
+  filteredRiwayat = masterRiwayat.filter(item => {
+    const tgl = item.created_at.split('T')[0];
+    return item.nama_barang.toLowerCase().includes(q) && (!s || tgl >= s) && (!e || tgl <= e);
+  });
+  
+  currentPage = 1; // Reset ke halaman 1 setiap kali filter berubah
+  updatePaginationView();
+}
+
+
+function updatePaginationView() {
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredRiwayat.slice(startIndex, endIndex);
+  
+  // Tampilkan/Sembunyikan navigasi pagination
+  const nav = document.getElementById('paginationRiwayat');
+  if (filteredRiwayat.length > itemsPerPage) {
+    nav.classList.remove('hidden');
+    document.getElementById('pageIndicator').innerText = `Hal ${currentPage} / ${Math.ceil(filteredRiwayat.length / itemsPerPage)}`;
+    document.getElementById('btnPrev').disabled = currentPage === 1;
+    document.getElementById('btnNext').disabled = endIndex >= filteredRiwayat.length;
+  } else {
+    nav.classList.add('hidden');
+  }
+  
+  renderRiwayat(paginatedItems);
+}
+
+// Fungsi untuk pindah halaman
+function changePage(direction) {
+  currentPage += direction;
+  updatePaginationView();
+  // Scroll kembali ke atas tab riwayat agar user tidak bingung
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+
+// Catalog Logic
+    async function openCatalog() {
+      document.getElementById('catalogOverlay').classList.add('active');
+      if (!dataLoaded.catalog) {
+        await loadCatalog();
+      }
+    }
+
+    function closeCatalog() {
+      document.getElementById('catalogOverlay').classList.remove('active');
+    }
+
+    async function loadCatalog() {
+      const grid = document.getElementById('catalogGrid');
+      grid.innerHTML = '<div class="col-span-2 text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600 text-3xl"></i></div>';
+      
+      try {
+        const { data, error } = await _supabase.from('products').select('image, nama, harga').order('nama');
+        if (error) throw error;
+        
+        masterCatalog = data || [];
+        dataLoaded.catalog = true;
+        renderCatalog(masterCatalog);
+      } catch (err) {
+        grid.innerHTML = `<div class="col-span-2 bg-red-50 text-red-500 p-4 rounded text-center text-xs">${err.message}</div>`;
+      }
+    }
+
+    function renderCatalog(items) {
+      const grid = document.getElementById('catalogGrid');
+      document.getElementById('catalogCount').innerText = `${items.length} Item`;
+      grid.innerHTML = '';
+      
+      if (items.length === 0) {
+        grid.innerHTML = '<div class="col-span-2 text-center py-20 text-gray-400 text-sm italic">Blangko tidak ditemukan</div>';
+        return;
+      }
+
+      items.forEach(item => {
+        // Handle image extraction (if string or array)
+        let firstImg = "https://via.placeholder.com/300x300?text=No+Image";
+        if (item.image) {
+          try {
+            // Check if it's a JSON string of an array
+            const parsed = typeof item.image === 'string' && item.image.startsWith('[') ? JSON.parse(item.image) : item.image;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              firstImg = parsed[0];
+            } else if (typeof item.image === 'string' && item.image.includes(',')) {
+              firstImg = item.image.split(',')[0].trim();
+            } else {
+              firstImg = item.image;
+            }
+          } catch(e) {
+            firstImg = item.image;
+          }
+        }
+
+        const div = document.createElement('div');
+        div.className = "bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col animate-in fade-in zoom-in duration-300";
+        div.innerHTML = `
+          <div class="aspect-square bg-gray-50 overflow-hidden">
+            <img src="${firstImg}" alt="${item.nama}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/300x300?text=Error+Load'">
+          </div>
+          <div class="p-3 flex-1 flex flex-col justify-between">
+            <h4 class="text-[11px] font-black text-slate-800 uppercase leading-tight line-clamp-2 mb-1">${item.nama}</h4>
+            <div class="text-indigo-600 font-bold text-xs">Rp ${new Intl.NumberFormat('id-ID').format(item.harga || 0)}</div>
+          </div>
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function filterCatalog() {
+      const q = document.getElementById('searchCatalog').value.toLowerCase();
+      const filtered = masterCatalog.filter(i => i.nama.toLowerCase().includes(q));
+      renderCatalog(filtered);
+    }
+
+function filterTableStok() {
+  const input = document.getElementById("searchStok");
+  const filter = input.value.toUpperCase();
+  const table = document.getElementById("mainTableStok");
+  const tr = table.getElementsByTagName("tr");
+
+  // Loop semua baris tabel (lewati header di index 0)
+  for (let i = 1; i < tr.length; i++) {
+    const td = tr[i].getElementsByTagName("td")[0]; // Kolom Produk
+    if (td) {
+      const txtValue = td.textContent || td.innerText;
+      if (txtValue.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = "";
+      } else {
+        tr[i].style.display = "none";
+      }
+    }
+  }
+}
+
+    function initRealtime() {
+      _supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'antrian' }, () => {
+        if (!isProcessing && itemsInProcess.length === 0) loadAntrian();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stok' }, () => {
+        if (!isProcessing) loadStok();
+      })
+      .subscribe();
+    }
+
+    window.onload = () => { addItemRow(); loadStok(); loadRiwayat(); initRealtime(); };
+
+
+  </script>
+</body>
+</html>

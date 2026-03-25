@@ -216,7 +216,7 @@
       <span id="selectedCount" class="font-black text-indigo-400">0</span> Item dipilih
     </div>
     <div class="flex gap-2">
-      <button id="btnBulkDelete" onclick="bulkDelete()" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
+      <button id="btnBulkDelete" onclick="handleDelete(selectedAntrianIds)" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
         HAPUS
       </button>
       <button id="btnBulkApprove" onclick="handleApprove(selectedAntrianIds)" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
@@ -474,7 +474,7 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
           </div>
           <div class="flex flex-col gap-1">
              <button onclick="handleApprove(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
-             <button onclick="hapusAntrian(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
+             <button onclick="handleDelete(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
           </div>
         `;
         container.appendChild(div);
@@ -519,33 +519,7 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       }
     }
 
-    async function bulkDelete() {
-      if (isProcessing || !confirm(`Hapus ${selectedAntrianIds.length} antrian sekaligus?`)) return;
-      
-      const idsToDelete = [...selectedAntrianIds];
-      itemsInProcess = [...itemsInProcess, ...idsToDelete];
-      selectedAntrianIds = [];
-      
-      setProcessingState(true);
-      renderAntrianFromState();
-      
-      showToast(`Menghapus ${idsToDelete.length} item...`);
-      try {
-        await _supabase.from('antrian').delete().in('id', idsToDelete);
-        itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
-        
-        showToast('Berhasil dihapus');
-        setTimeout(() => { 
-          hideToast(); setProcessingState(false); loadAntrian(); 
-        }, 800);
-      } catch (err) { 
-        itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
-        showToast('Gagal: ' + err.message, true); setProcessingState(false);
-        loadAntrian();
-      }
-    }
-
-    
+       
     async function processApprove(id) {
       const { data: item } = await _supabase.from('antrian').select('*').eq('id', id).single();
       if (!item) return;
@@ -615,27 +589,53 @@ async function handleApprove(ids) {
   }
 }
 
-    async function hapusAntrian(id) {
-      if(isProcessing || itemsInProcess.includes(id) || !confirm('Hapus antrian?')) return;
-      
-      itemsInProcess.push(id);
-      setProcessingState(true);
-      renderAntrianFromState();
-      
-      try {
-        await _supabase.from('antrian').delete().eq('id', id);
-        itemsInProcess = itemsInProcess.filter(i => i !== id);
-        showToast('Terhapus');
-        setTimeout(() => {
-          hideToast(); setProcessingState(false); loadAntrian();
-        }, 500);
-      } catch (err) { 
-        itemsInProcess = itemsInProcess.filter(i => i !== id);
-        showToast('Gagal: ' + err.message, true); setProcessingState(false);
-        loadAntrian();
-      }
-    }
+    async function handleDelete(ids) {
+  if (isProcessing) return;
 
+  // Pastikan ids dalam bentuk Array
+  const idsToDelete = Array.isArray(ids) ? [...ids] : [ids];
+  if (idsToDelete.length === 0) return;
+
+  const pesan = idsToDelete.length > 1 
+    ? `Hapus ${idsToDelete.length} antrian sekaligus?` 
+    : 'Hapus antrian ini?';
+
+  if (!confirm(pesan)) return;
+
+  // Persiapan state
+  itemsInProcess = [...itemsInProcess, ...idsToDelete];
+  selectedAntrianIds = []; // Reset checkbox
+  setProcessingState(true);
+  renderAntrianFromState();
+
+  showToast(idsToDelete.length > 1 ? `Menghapus ${idsToDelete.length} item...` : 'Menghapus...');
+
+  try {
+    // Jauh lebih efisien: Langsung hapus semua ID dalam satu request ke Supabase
+    const { error } = await _supabase
+      .from('antrian')
+      .delete()
+      .in('id', idsToDelete);
+
+    if (error) throw error;
+
+    showToast('Berhasil dihapus');
+    
+    setTimeout(() => {
+      itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
+      hideToast();
+      setProcessingState(false);
+      loadAntrian();
+    }, 600);
+
+  } catch (err) {
+    itemsInProcess = itemsInProcess.filter(id => !idsToDelete.includes(id));
+    showToast('Gagal: ' + err.message, true);
+    setProcessingState(false);
+    loadAntrian();
+  }
+}
+    
     async function loadRiwayat() {
   try {
     const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });

@@ -217,7 +217,7 @@
     </div>
     <div class="flex gap-2">
       <button id="btnBulkDelete" onclick="handleDelete(selectedAntrianIds)" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
-        HAPUS
+        HAPUS TERPILIH
       </button>
       <button id="btnBulkApprove" onclick="handleApprove(selectedAntrianIds)" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
         APPROVE SEMUA
@@ -311,18 +311,31 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
         updateBulkBar();
       }
 
-    if (name === 'antrian' && !dataLoaded.antrian) loadAntrian();
+    // --- 3. LOGIKA LOADING UNTUK MASING-MASING TAB ---
 
+  // UNTUK ANTRIAN
+  if (name === 'antrian' && !dataLoaded.antrian) {
+    document.getElementById('listAntrian').innerHTML = 
+      '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Antrian...</div>';
+    loadAntrian();
+  }
+
+  // UNTUK RIWAYAT
   if (name === 'riwayat' && !dataLoaded.riwayat) {
-    // Berikan indikator loading agar user tahu data sedang diambil
-    const container = document.getElementById('listRiwayat');
-    if (container) {
-      container.innerHTML = '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
-    }
+    document.getElementById('listRiwayat').innerHTML = 
+      '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
     loadRiwayat();
   }
 
-  if (name === 'stok' || name === 'input') loadStok();
+  // UNTUK STOK & INPUT (Keduanya butuh data stok)
+  if ((name === 'stok' || name === 'input') && !dataLoaded.stok) {
+    // Jika di tab stok, tampilkan loading di tabel
+    const tbody = document.getElementById('tableStok');
+    if (name === 'stok' && tbody) {
+      tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data Stok...</td></tr>';
+    }
+    loadStok(); 
+  }
       
     }
 

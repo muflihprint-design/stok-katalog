@@ -139,9 +139,6 @@
         </div>
       </div>
       <div id="listRiwayat" class="space-y-2"></div>
-<div id="tab-riwayat" class="hidden space-y-4">
-  <div id="listRiwayat" class="space-y-2"></div>
-
   <div id="paginationRiwayat" class="flex items-center justify-between py-4 hidden">
     <button onclick="changePage(-1)" id="btnPrev" class="px-4 py-2 bg-white border border-indigo-200 text-indigo-600 rounded-lg text-xs font-bold disabled:opacity-30">
       <i class="fas fa-chevron-left mr-1"></i> SEBELUMNYA
@@ -152,8 +149,7 @@
     </button>
   </div>
 </div>
-    </div>
-
+  
     <!-- TAB: STOK -->
 <div id="tab-stok" class="hidden">
   <div class="flex justify-between items-center mb-3">
@@ -223,7 +219,7 @@
       <button id="btnBulkDelete" onclick="bulkDelete()" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
         HAPUS
       </button>
-      <button id="btnBulkApprove" onclick="bulkApprove()" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
+      <button id="btnBulkApprove" onclick="handleApprove(selectedAntrianIds)" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
         APPROVE SEMUA
       </button>
     </div>
@@ -260,7 +256,7 @@
     let isProcessing = false;
     let itemsInProcess = []; 
 let currentPage = 1;
-const itemsPerPage = 5;
+const itemsPerPage = 20;
 let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
 
     function setProcessingState(state) {
@@ -315,9 +311,19 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
         updateBulkBar();
       }
 
-      if (name === 'antrian' && !dataLoaded.antrian) loadAntrian();
-      if (name === 'riwayat' && !dataLoaded.riwayat) loadRiwayat();
-      if (name === 'stok' || name === 'input') loadStok(); 
+    if (name === 'antrian' && !dataLoaded.antrian) loadAntrian();
+
+  if (name === 'riwayat' && !dataLoaded.riwayat) {
+    // Berikan indikator loading agar user tahu data sedang diambil
+    const container = document.getElementById('listRiwayat');
+    if (container) {
+      container.innerHTML = '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
+    }
+    loadRiwayat();
+  }
+
+  if (name === 'stok' || name === 'input') loadStok();
+      
     }
 
     function addItemRow() {
@@ -467,7 +473,7 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
             <div class="text-xs text-indigo-600 font-bold mt-1">Jumlah: ${item.jumlah}</div>
           </div>
           <div class="flex flex-col gap-1">
-             <button onclick="approveSingle(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
+             <button onclick="handleApprove(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
              <button onclick="hapusAntrian(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
           </div>
         `;
@@ -513,42 +519,6 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       }
     }
 
-    async function bulkApprove() {
-      if (isProcessing || !confirm(`Approve ${selectedAntrianIds.length} transaksi sekaligus?`)) return;
-      
-      const idsToProcess = [...selectedAntrianIds];
-      itemsInProcess = [...itemsInProcess, ...idsToProcess];
-      selectedAntrianIds = [];
-      
-      setProcessingState(true);
-      renderAntrianFromState(); 
-      
-      showToast(`Memproses ${idsToProcess.length} item...`);
-      updateProgress(10);
-      
-      try {
-        let count = 0;
-        for (const id of idsToProcess) {
-          await processApprove(id);
-          count++;
-          updateProgress(10 + ((count / idsToProcess.length) * 90));
-        }
-        
-        itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
-        showToast('Semua berhasil di-Approve!');
-        dataLoaded.stok = false;
-        dataLoaded.riwayat = false;
-        
-        setTimeout(() => { 
-          hideToast(); updateProgress(0); setProcessingState(false); loadAntrian(); 
-        }, 800);
-      } catch (err) { 
-        itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
-        showToast('Gagal: ' + err.message, true); updateProgress(0); setProcessingState(false);
-        loadAntrian();
-      }
-    }
-
     async function bulkDelete() {
       if (isProcessing || !confirm(`Hapus ${selectedAntrianIds.length} antrian sekaligus?`)) return;
       
@@ -575,30 +545,7 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       }
     }
 
-    async function approveSingle(id) {
-      if (isProcessing || itemsInProcess.includes(id)) return;
-      
-      itemsInProcess.push(id);
-      setProcessingState(true);
-      renderAntrianFromState();
-      
-      showToast('Memproses...');
-      try {
-        await processApprove(id);
-        itemsInProcess = itemsInProcess.filter(i => i !== id);
-        showToast('Berhasil!');
-        dataLoaded.stok = false;
-        dataLoaded.riwayat = false;
-        setTimeout(() => { 
-          hideToast(); setProcessingState(false); loadAntrian(); 
-        }, 800);
-      } catch (err) { 
-        itemsInProcess = itemsInProcess.filter(i => i !== id);
-        showToast('Gagal: ' + err.message, true); setProcessingState(false);
-        loadAntrian();
-      }
-    }
-
+    
     async function processApprove(id) {
       const { data: item } = await _supabase.from('antrian').select('*').eq('id', id).single();
       if (!item) return;
@@ -616,7 +563,57 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       }
       await _supabase.from('riwayat').insert([{ jenis: item.jenis, nama_barang: item.nama_barang, jumlah: item.jumlah }]);
       await _supabase.from('antrian').delete().eq('id', id);
+      dataLoaded.riwayat = false;
+      dataLoaded.stok = false
     }
+
+    // Fungsi pembantu untuk menangani proses Approve (Satu atau Banyak)
+async function handleApprove(ids) {
+  if (isProcessing) return;
+  
+  // Konversi ke array jika yang masuk hanya satu ID (angka)
+  const idsToProcess = Array.isArray(ids) ? ids : [ids];
+  
+  if (idsToProcess.length > 1 && !confirm(`Approve ${idsToProcess.length} transaksi sekaligus?`)) return;
+
+  // Persiapan state
+  itemsInProcess = [...itemsInProcess, ...idsToProcess];
+  selectedAntrianIds = []; // Reset pilihan checkbox
+  setProcessingState(true);
+  renderAntrianFromState();
+  
+  showToast(`Memproses ${idsToProcess.length} item...`);
+  updateProgress(10);
+  
+  try {
+    let count = 0;
+    for (const id of idsToProcess) {
+      await processApprove(id); // Memanggil fungsi database Anda
+      count++;
+      updateProgress(10 + ((count / idsToProcess.length) * 90));
+    }
+    
+    // --- EFISIENSI DI SINI ---
+    dataLoaded.riwayat = false; // Hanya dipanggil 1x setelah semua loop selesai
+    dataLoaded.stok = false;
+    
+    showToast('Berhasil di-Approve!');
+    
+    setTimeout(() => { 
+      itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
+      hideToast(); 
+      updateProgress(0); 
+      setProcessingState(false); 
+      loadAntrian(); 
+    }, 800);
+
+  } catch (err) { 
+    itemsInProcess = itemsInProcess.filter(id => !idsToProcess.includes(id));
+    showToast('Gagal: ' + err.message, true); 
+    setProcessingState(false);
+    loadAntrian();
+  }
+}
 
     async function hapusAntrian(id) {
       if(isProcessing || itemsInProcess.includes(id) || !confirm('Hapus antrian?')) return;
@@ -880,7 +877,7 @@ function filterTableStok() {
       .subscribe();
     }
 
-    window.onload = () => { addItemRow(); loadStok(); loadRiwayat(); initRealtime(); };
+    window.onload = () => { addItemRow(); loadStok(); initRealtime(); };
 
 
   </script>

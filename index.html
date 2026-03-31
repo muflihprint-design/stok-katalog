@@ -386,20 +386,55 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       e.preventDefault();
       if (isProcessing) return;
       
-      // 1. Ambil nilai keterangan
       const keterangan = document.getElementById('inputKeterangan').value.trim();
-      
-      // 2. Validasi Keterangan tidak boleh kosong
       if (!keterangan) {
         showToast("Keterangan wajib diisi!", true);
         document.getElementById('inputKeterangan').focus();
         return;
       }
 
-      setProcessingState(true);
       const rows = document.querySelectorAll('#itemContainer > div');
       const jenis = document.getElementById('inputJenisGlobal').value;
-      
+      const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+      // --- VALIDASI DUPLIKASI ---
+  for (let row of rows) {
+        const namaBarang = row.querySelector('[name="namaBarang"]').value.trim().toUpperCase();
+        const jumlah = parseInt(row.querySelector('[name="jumlahBarang"]').value);
+        
+        if (!namaBarang || isNaN(jumlah)) continue;
+
+        // Cek tabel ANTRIAN (Sama Barang, Sama Jumlah, Sama Jenis, Hari Ini)
+        const { data: duplicateAntrian } = await _supabase
+          .from('antrian')
+          .select('id')
+          .eq('nama_barang', namaBarang)
+          .eq('jumlah', jumlah)
+          .eq('jenis', jenis) // TAMBAHAN: Cek Jenis Transaksi
+          .gte('created_at', `${today}T00:00:00`)
+          .lte('created_at', `${today}T23:59:59`);
+
+        // Cek tabel RIWAYAT (Sama Barang, Sama Jumlah, Sama Jenis, Hari Ini)
+        const { data: duplicateRiwayat } = await _supabase
+          .from('riwayat')
+          .select('id')
+          .eq('nama_barang', namaBarang)
+          .eq('jumlah', jumlah)
+          .eq('jenis', jenis) // TAMBAHAN: Cek Jenis Transaksi
+          .gte('created_at', `${today}T00:00:00`)
+          .lte('created_at', `${today}T23:59:59`);
+
+        const totalDuplikat = (duplicateAntrian?.length || 0) + (duplicateRiwayat?.length || 0);
+
+        if (totalDuplikat > 0) {
+          // Pesan konfirmasi yang lebih spesifik menyebutkan jenis transaksi
+          const konfirmasi = confirm(`Peringatan: Anda telah menginput "${namaBarang}" sebagai "${jenis}" dengan jumlah yang sama sebanyak ${totalDuplikat} kali hari ini.\n\nLanjutkan simpan?`);
+          if (!konfirmasi) return; 
+        }
+      }
+      // --- END VALIDASI DUPLIKASI ---
+
+      setProcessingState(true);
       showToast(`Menyimpan ${rows.length} item...`);
       updateProgress(10);
       
@@ -411,30 +446,25 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
           
           if (!namaBarang || isNaN(jumlah)) continue;
           
-          const { data: existingProduct, error: fetchErr } = await _supabase
+          // Cek & buat stok jika belum ada
+          const { data: existingProduct } = await _supabase
             .from('stok')
             .select('nama')
             .eq('nama', namaBarang)
             .maybeSingle();
 
-          if (fetchErr) throw fetchErr;
-
           if (!existingProduct) {
-            const { error: insertErr } = await _supabase
-              .from('stok')
-              .insert([{ nama: namaBarang, sisa: 0 }]);
-            
-            if (insertErr) throw insertErr;
+            await _supabase.from('stok').insert([{ nama: namaBarang, sisa: 0 }]);
           }
 
-          // 3. Insert ke Antrian beserta Keterangan
+          // Simpan ke antrian
           const { error: antrianErr } = await _supabase
             .from('antrian')
             .insert([{ 
               jenis, 
               nama_barang: namaBarang, 
               jumlah,
-              keterangan: keterangan // Pastikan kolom ini ada di Supabase
+              keterangan: keterangan 
             }]);
           
           if (antrianErr) throw antrianErr;
@@ -443,7 +473,7 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
           updateProgress(10 + ((count / rows.length) * 80));
         }
         
-        // 4. Reset Form
+        // Reset Form
         document.getElementById('inputKeterangan').value = ''; 
         document.getElementById('itemContainer').innerHTML = '';
         addItemRow();
@@ -466,7 +496,6 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
         setProcessingState(false);
       }
     };
-
     async function loadAntrian() {
       const container = document.getElementById('listAntrian');
       try {

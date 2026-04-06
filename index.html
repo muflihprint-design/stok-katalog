@@ -264,6 +264,7 @@
   </nav>
 
   <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzrpq02tHX77R19gUfKEIpQlR1QexJineaF_dUTwHbJdRXwkuzpjGMmfNPSJ54iSGtDeQ/exec";
     const SUPABASE_URL = "https://zqxeoveanevsvynptckm.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVvdmVhbmV2c3Z5bnB0Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzUzODEsImV4cCI6MjA4OTg1MTM4MX0.eeIaytpW1wtWPJc2FbhufkDkhONUt9yypTZU4dTVmsM";
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -942,20 +943,20 @@ function changePage(direction) {
 
 // Mengambil detail dari AppScript
 async function fetchTransactionDetail(trxId) {
-    if (!trxId || trxId === "-") {
-        showToast("ID Transaksi tidak ditemukan", true);
-        return;
-    }
-    showToast("Memuat rincian...");
+ showToast("Memuat semua antrian produksi...");
     try {
-        const res = await fetch(`${WEB_APP_URL}?action=getDetail&id=${trxId}`);
-        const data = await res.json();
-        const items = typeof data === 'string' ? JSON.parse(data) : data;
-        
-        displayDetailModal(trxId, items);
-        hideToast();
+        // Memanggil action baru 'getAllPending'
+        const response = await fetch(`${WEB_APP_URL}?action=getAllPending`);
+        const items = await response.json();
+
+        if (Array.isArray(items) && items.length > 0) {
+            displayDetailModal(items); // Tampilkan ke modal
+            hideToast();
+        } else {
+            showToast("Tidak ada item yang perlu diproses", true);
+        }
     } catch (e) {
-        showToast("Gagal mengambil rincian", true);
+        showToast("Gagal terhubung ke server", true);
     }
 }
 

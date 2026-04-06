@@ -50,6 +50,21 @@
       background: rgba(255,255,255,0.4); z-index: 10; border-radius: 1rem;
     }
 
+    /* Style untuk item yang sudah terceklist */
+.item-row-detail {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem; border-bottom: 1px solid #f1f5f9; border-radius: 0.5rem;
+    background-color: #f8fafc; margin-bottom: 0.5rem;
+}
+.checked-item {
+    background-color: #f1f5f9 !important;
+    opacity: 0.7;
+}
+.checked-item .item-text {
+    text-decoration: line-through;
+    color: #94a3b8;
+}
+    
 /* Catalog Styles */
     #catalogOverlay {
       position: fixed; inset: 0; background: #f8fafc; z-index: 1000;
@@ -508,44 +523,47 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       }
     }
 
-    function renderAntrian(data) {
-      const container = document.getElementById('listAntrian');
-      container.innerHTML = '';
-      if (!data || data.length === 0) {
-        container.innerHTML = '<div class="glass-card p-8 text-center text-gray-500 text-sm">Tidak ada antrian transaksi</div>';
-        selectedAntrianIds = [];
-        updateBulkBar();
-        return;
-      }
-      data.forEach(item => {
-        const isChecked = selectedAntrianIds.includes(item.id);
-        const inProcess = itemsInProcess.includes(item.id);
-        const div = document.createElement('div');
-        div.className = `glass-card p-4 shadow-sm border-l-4 border-indigo-500 flex gap-4 items-center transition-all ${isChecked ? 'ring-2 ring-indigo-500 ring-inset' : ''} ${inProcess ? 'item-processing' : ''}`;
-        
-        div.innerHTML = `
-          ${inProcess ? '<div class="loading-overlay"><i class="fas fa-circle-notch animate-spin text-indigo-600 text-xl"></i></div>' : ''}
-          <div class="flex-shrink-0">
-            <input type="checkbox" onchange="toggleItemSelection(${item.id})" ${isChecked ? 'checked' : ''} ${(isProcessing || inProcess) ? 'disabled' : ''}>
-          </div>
-          <div class="flex-1">
-            <div class="flex justify-between text-[9px] mb-1 uppercase text-gray-500">
-              <span>${new Date(item.created_at).toLocaleTimeString('id-ID')} - ${new Date(item.created_at).toLocaleDateString('id-ID')}</span>
-              <span class="font-bold ${item.jenis === 'Barang Masuk' ? 'text-green-600' : 'text-red-600'}">${item.jenis}</span>
-            </div>
-            <div class="font-bold text-slate-800 leading-tight">${item.nama_barang}</div>
-            <div class="text-[10px] text-gray-500 italic mt-0.5">Ket: ${item.keterangan || '-'}</div>
-            <div class="text-xs text-indigo-600 font-bold mt-1">Jumlah: ${item.jumlah}</div>
-          </div>
-          <div class="flex flex-col gap-1">
-             <button onclick="handleApprove(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
-             <button onclick="handleDelete(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-      updateBulkBar();
-    }
+  function renderAntrian(data) {
+  const container = document.getElementById('listAntrian');
+  container.innerHTML = '';
+  if (!data || data.length === 0) {
+    container.innerHTML = '<div class="glass-card p-8 text-center text-gray-500 text-sm">Tidak ada antrian transaksi</div>';
+    selectedAntrianIds = [];
+    updateBulkBar();
+    return;
+  }
+  data.forEach(item => {
+    const isChecked = selectedAntrianIds.includes(item.id);
+    const inProcess = itemsInProcess.includes(item.id);
+    const div = document.createElement('div');
+    div.className = `glass-card p-4 shadow-sm border-l-4 border-indigo-500 flex gap-4 items-center transition-all ${isChecked ? 'ring-2 ring-indigo-500 ring-inset' : ''} ${inProcess ? 'item-processing' : ''}`;
+    
+    // Ambil ID Transaksi dari kolom keterangan
+    const trxId = item.keterangan || "";
+
+    div.innerHTML = `
+      ${inProcess ? '<div class="loading-overlay"><i class="fas fa-circle-notch animate-spin text-indigo-600 text-xl"></i></div>' : ''}
+      <div class="flex-shrink-0">
+        <input type="checkbox" onchange="toggleItemSelection(${item.id})" ${isChecked ? 'checked' : ''} ${(isProcessing || inProcess) ? 'disabled' : ''}>
+      </div>
+      <div class="flex-1 cursor-pointer group" onclick="fetchTransactionDetail('${trxId}')">
+        <div class="flex justify-between text-[9px] mb-1 uppercase text-gray-500">
+          <span>${new Date(item.created_at).toLocaleTimeString('id-ID')} - ${new Date(item.created_at).toLocaleDateString('id-ID')}</span>
+          <span class="font-bold ${item.jenis === 'Barang Masuk' ? 'text-green-600' : 'text-red-600'}">${item.jenis}</span>
+        </div>
+        <div class="font-bold text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors">${item.nama_barang}</div>
+        <div class="text-[10px] text-gray-400 italic mt-0.5">ID: ${trxId || '-'}</div>
+        <div class="text-[10px] text-indigo-500 font-bold mt-1 uppercase tracking-wider">Klik untuk rincian item</div>
+      </div>
+      <div class="flex flex-col gap-1">
+         <button onclick="handleApprove(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fas fa-check-circle"></i></button>
+         <button onclick="handleDelete(${item.id})" ${(isProcessing || inProcess) ? 'disabled' : ''} class="p-2 text-red-300 hover:text-red-500 rounded-lg"><i class="fas fa-trash"></i></button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+  updateBulkBar();
+}
 
     function toggleItemSelection(id) {
       if (isProcessing || itemsInProcess.includes(id)) return;
@@ -921,6 +939,99 @@ function changePage(direction) {
       renderCatalog(filtered);
     }
 
+
+// Mengambil detail dari AppScript
+async function fetchTransactionDetail(trxId) {
+    if (!trxId || trxId === "-") {
+        showToast("ID Transaksi tidak ditemukan", true);
+        return;
+    }
+    showToast("Memuat rincian...");
+    try {
+        const res = await fetch(`${WEB_APP_URL}?action=getDetail&id=${trxId}`);
+        const data = await res.json();
+        const items = typeof data === 'string' ? JSON.parse(data) : data;
+        
+        displayDetailModal(trxId, items);
+        hideToast();
+    } catch (e) {
+        showToast("Gagal mengambil rincian", true);
+    }
+}
+
+// Menampilkan Modal
+function displayDetailModal(trxId, allItems) {
+    const list = document.getElementById('detailItemList');
+    document.getElementById('modalSub').innerText = `ID: ${trxId}`;
+    list.innerHTML = '';
+
+    // Filter hanya item yang belum terceklis di database saat modal dibuka
+    const pendingItems = allItems.filter(item => item.checked !== true);
+
+    if (pendingItems.length === 0) {
+        list.innerHTML = '<div class="text-center py-10 text-emerald-600 font-bold"><i class="fas fa-check-double text-3xl mb-2"></i><p>Semua item selesai</p></div>';
+    } else {
+        pendingItems.forEach((item) => {
+            const originalIndex = allItems.indexOf(item);
+            const div = document.createElement('div');
+            div.className = `item-row-detail`;
+            div.innerHTML = `
+                <div class="flex items-center gap-4 flex-1">
+                    <input type="checkbox" class="w-6 h-6 accent-indigo-600 cursor-pointer" 
+                        onchange="updateCheckedStatus('${trxId}', ${originalIndex}, this)">
+                    <div class="flex-1 item-text">
+                        <span class="text-sm font-bold text-slate-700 block">${item.nama}</span>
+                        <span class="text-xs text-slate-500">${item.qty} pcs</span>
+                    </div>
+                </div>
+                <div class="status-icon"><i class="fas fa-clock text-slate-300 text-xs"></i></div>
+            `;
+            list.appendChild(div);
+        });
+    }
+    document.getElementById('detailModal').classList.add('active');
+}
+
+// Update status ke backend (Tetap tampil di modal dengan status visual)
+async function updateCheckedStatus(trxId, index, checkbox) {
+    const isChecked = checkbox.checked;
+    const row = checkbox.closest('.item-row-detail');
+    const icon = row.querySelector('.status-icon');
+
+    // Update visual segera
+    if (isChecked) {
+        row.classList.add('checked-item');
+        icon.innerHTML = '<i class="fas fa-check-circle text-emerald-500"></i>';
+    } else {
+        row.classList.remove('checked-item');
+        icon.innerHTML = '<i class="fas fa-clock text-slate-300 text-xs"></i>';
+    }
+
+    try {
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                action: "updateItemCheckStatus",
+                trxId: trxId,
+                itemIndex: index,
+                isChecked: isChecked
+            })
+        });
+        showToast(isChecked ? "Ditandai selesai" : "Ceklist dibatalkan");
+    } catch (e) {
+        showToast("Koneksi gagal", true);
+        // Rollback visual jika gagal total
+        checkbox.checked = !isChecked;
+        row.classList.toggle('checked-item');
+    }
+}
+
+function closeDetailModal() {
+    document.getElementById('detailModal').classList.remove('active');
+}
+
+    
 function filterTableStok() {
   const input = document.getElementById("searchStok");
   const filter = input.value.toUpperCase();

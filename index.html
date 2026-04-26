@@ -184,9 +184,14 @@
 <div id="tab-stok" class="hidden">
   <div class="flex justify-between items-center mb-3">
     <h3 class="text-white font-bold text-sm">Posisi Stok Terkini</h3>
-    <button onclick="openCatalog()" class="bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition">
-      <i class="fas fa-book-open"></i> LIHAT KATALOG
-    </button>
+    <div class="flex gap-2">
+      <button onclick="recalculateStock()" class="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition">
+        <i class="fas fa-sync-alt" id="syncIcon"></i> RE-STOK
+      </button>
+      <button onclick="openCatalog()" class="bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition">
+        <i class="fas fa-book-open"></i> LIHAT KATALOG
+      </button>
+    </div>
   </div>
 
   <div class="glass-card p-3 mb-3 shadow-md">
@@ -1100,6 +1105,80 @@ function closeDetailModal() {
         modal.classList.remove('active');
         setTimeout(() => { modal.style.display = 'none'; }, 300);
     }
+}
+
+async function recalculateStock() {
+  if (!confirm("Fitur ini akan menghitung ulang seluruh saldo stok berdasarkan Riwayat Transaksi. Lanjutkan?")) return;
+
+  setProcessingState(true);
+  showToast("Memulai kalkulasi ulang...");
+  const syncIcon = document.getElementById('syncIcon');
+  syncIcon?.classList.add('animate-spin');
+
+  try {
+    // 1. Ambil semua data riwayat
+    const { data: allRiwayat, error: errR } = await _supabase
+      .from('riwayat')
+      .select('nama_barang, jumlah, jenis');
+    
+    if (errR) throw errR;
+
+    // 2. Ambil semua produk yang terdaftar di tabel stok
+    const { data: allStok, error: errS } = await _supabase
+      .from('stok')
+      .select('nama');
+    
+    if (errS) throw errS;
+
+    // 3. Objek untuk menampung hasil perhitungan sementara
+    let calcMap = {};
+    
+    // Inisialisasi semua barang yang ada di stok dengan angka 0
+    allStok.forEach(s => calcMap[s.nama] = 0);
+
+    // 4. Proses perhitungan berdasarkan riwayat
+    allRiwayat.forEach(item => {
+      const nama = item.nama_barang;
+      const qty = parseInt(item.jumlah) || 0;
+      
+      if (!calcMap.hasOwnProperty(nama)) calcMap[nama] = 0;
+
+      if (item.jenis === 'Barang Masuk') {
+        calcMap[nama] += qty;
+      } else {
+        calcMap[nama] -= qty;
+      }
+    });
+
+    // 5. Update ke database Supabase
+    const entries = Object.entries(calcMap);
+    let count = 0;
+
+    for (const [nama, sisa] of entries) {
+      const { error: upErr } = await _supabase
+        .from('stok')
+        .update({ sisa: sisa, updated_at: new Date().toISOString() })
+        .eq('nama', nama);
+      
+      if (upErr) console.error(`Gagal update ${nama}:`, upErr);
+      
+      count++;
+      updateProgress((count / entries.length) * 100);
+    }
+
+    showToast("Berhasil menghitung ulang stok!");
+    dataLoaded.stok = false;
+    loadStok(); // Refresh tampilan tabel
+
+  } catch (err) {
+    console.error(err);
+    showToast("Gagal hitung ulang: " + err.message, true);
+  } finally {
+    syncIcon?.classList.remove('animate-spin');
+    setProcessingState(false);
+    updateProgress(0);
+    setTimeout(hideToast, 2000);
+  }
 }
     
 function filterTableStok() {

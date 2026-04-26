@@ -127,10 +127,12 @@
           <i class="fas fa-plus"></i> TAMBAH BARANG LAIN
         </button>
         <div class="pt-4">
-          <button type="submit" id="btnSubmitForm" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
-            <i class="fas fa-save"></i> SIMPAN
-          </button>
-        </div>
+  <button type="submit" id="btnSubmitForm" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+    <i class="fas fa-save" id="iconSave"></i>
+    <i class="fas fa-circle-notch animate-spin hidden" id="iconLoading"></i>
+    <span id="btnText">SIMPAN TRANSAKSI</span>
+  </button>
+</div>
       </form>
     </div>
 
@@ -279,17 +281,24 @@ const itemsPerPage = 20;
 let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
     let currentActiveAntrianId = null; // Menampung ID antrian yang sedang dibuka modalnya
 
-    function setProcessingState(state) {
-      isProcessing = state;
-      const buttons = ['btnSubmitForm', 'btnBulkDelete', 'btnBulkApprove', 'btnSelectAll', 'btnAddItem'];
-      buttons.forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.disabled = state;
-      });
-      if (state) {
-        document.querySelectorAll('#listAntrian input, #listAntrian button').forEach(el => el.disabled = true);
-      }
-    }
+function setProcessingState(isProcessing) {
+  const btn = document.getElementById('btnSubmitForm');
+  const iconSave = document.getElementById('iconSave');
+  const iconLoading = document.getElementById('iconLoading');
+  const btnText = document.getElementById('btnText');
+
+  if (isProcessing) {
+    btn.disabled = true;
+    iconSave.classList.add('hidden');
+    iconLoading.classList.remove('hidden');
+    btnText.innerText = "SEDANG MEMPROSES...";
+  } else {
+    btn.disabled = false;
+    iconSave.classList.remove('hidden');
+    iconLoading.classList.add('hidden');
+    btnText.innerText = "SIMPAN TRANSAKSI";
+  }
+}
 
     function showToast(msg, isError = false) {
       const toast = document.getElementById('statusToast');
@@ -316,48 +325,49 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
       document.getElementById('topProgressBar').style.width = percent + '%';
     }
 
-    function showTab(name) {
-      if (isProcessing) return;
-      currentTab = name;
-      ['input', 'antrian', 'riwayat', 'stok'].forEach(t => {
-        document.getElementById('tab-'+t)?.classList.add('hidden');
-        document.getElementById('nav-'+t)?.classList.remove('active', 'text-indigo-600');
-      });
-      document.getElementById('tab-'+name).classList.remove('hidden');
-      document.getElementById('nav-'+name).classList.add('active', 'text-indigo-600');
-      
-      if (name !== 'antrian') {
-        selectedAntrianIds = [];
-        updateBulkBar();
-      }
+   function showTab(name) {
+  if (isProcessing) return;
+  currentTab = name;
 
-    // --- 3. LOGIKA LOADING UNTUK MASING-MASING TAB ---
+  // 1. Sembunyikan semua tab dan matikan status aktif pada nav (Hapus 'antrian' dari list)
+  ['input', 'riwayat', 'stok'].forEach(t => {
+    const tabEl = document.getElementById('tab-' + t);
+    const navEl = document.getElementById('nav-' + t);
+    if (tabEl) tabEl.classList.add('hidden');
+    if (navEl) navEl.classList.remove('active', 'text-indigo-600');
+  });
 
-  // UNTUK ANTRIAN
-  if (name === 'antrian' && !dataLoaded.antrian) {
-    document.getElementById('listAntrian').innerHTML = 
-      '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Antrian...</div>';
-    loadAntrian();
-  }
+  // 2. Tampilkan tab yang dipilih
+  const targetTab = document.getElementById('tab-' + name);
+  const targetNav = document.getElementById('nav-' + name);
+  
+  if (targetTab) targetTab.classList.remove('hidden');
+  if (targetNav) targetNav.classList.add('active', 'text-indigo-600');
+
+  // --- 3. LOGIKA LOADING UNTUK MASING-MASING TAB ---
 
   // UNTUK RIWAYAT
   if (name === 'riwayat' && !dataLoaded.riwayat) {
-    document.getElementById('listRiwayat').innerHTML = 
-      '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
+    const listRiwayat = document.getElementById('listRiwayat');
+    if (listRiwayat) {
+      listRiwayat.innerHTML = 
+        '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
+    }
     loadRiwayat();
   }
 
-  // UNTUK STOK & INPUT (Keduanya butuh data stok)
+  // UNTUK STOK & INPUT (Keduanya butuh data stok untuk autocomplete/list)
   if ((name === 'stok' || name === 'input') && !dataLoaded.stok) {
     // Tampilkan loading hanya jika kita berada di tab Stok
     if (name === 'stok') {
-        const tbody = document.getElementById('tableStok');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data...</td></tr>';
+      const tbody = document.getElementById('tableStok');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data...</td></tr>';
+      }
     }
     loadStok(); 
+  }
 }
-      
-    }
 
     function addItemRow() {
   const container = document.getElementById('itemContainer');
@@ -378,7 +388,13 @@ let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
     </div>
     <div class="w-24">
       <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-tight">Jumlah</label>
-      <input type="number" name="jumlahBarang" class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm" placeholder="0" required>
+      <input type="text" 
+             name="jumlahBarang" 
+             inputmode="numeric" 
+             oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+             class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm no-spinner" 
+             placeholder="0" 
+             required>
     </div>
     <button type="button" onclick="removeItemRow('${rowId}')" class="p-2.5 text-red-300 hover:text-red-500 transition mb-[2px]">
       <i class="fas fa-times-circle"></i>
@@ -751,120 +767,7 @@ async function fetchAllPendingItems(id, jenis, namaKlik, qtyKlik) {
     }
 }
 
-    
-    
-// Menampilkan Modal
-// PERUBAHAN: Tambahkan namaKlik dan qtyKlik ke dalam kurung parameter
-function displayDetailModal(foundItems, jenis, namaKlik, qtyKlik) {
-    const list = document.getElementById('detailItemList');
-    const title = document.getElementById('modalTitle');
-    const sub = document.getElementById('modalSub');
-
-    // Menentukan label header modal berdasarkan jenis antrian
-    const labelHeader = (jenis === "Barang Masuk") ? "Daftar Pembelian (Masuk)" : "Daftar Penjualan (Keluar)";
-    
-    if (title) title.innerText = labelHeader;
-    if (sub) sub.innerText = `${foundItems.length} item pending ditemukan`;
-    
-    if (!list) return;
-    list.innerHTML = '';
-
-    // Membuat box Target Pencarian yang lengket (sticky) di atas
-    const guideBox = document.createElement('div');
-    guideBox.className = "mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-2xl shadow-sm sticky top-0 z-10";
-    guideBox.innerHTML = `
-        <p class="text-[10px] text-indigo-400 font-bold uppercase mb-1">Target Pencarian:</p>
-        <div class="flex justify-between items-center">
-            <h4 class="text-base font-black text-indigo-900 leading-tight">${namaKlik || '-'}</h4>
-            <div class="text-lg font-black text-indigo-600">${qtyKlik || 0} <span class="text-[10px] font-normal">pcs</span></div>
-        </div>
-    `;
-    list.appendChild(guideBox);
-
-    foundItems.forEach((item) => {
-        const div = document.createElement('div');
-        div.className = `item-row-detail mb-2`; // Menambah sedikit jarak antar baris
-        div.innerHTML = `
-            <div class="flex items-center gap-4 flex-1">
-                <input type="checkbox" class="w-6 h-6 accent-indigo-600 cursor-pointer" 
-                    onchange="updateCheckedStatus('${item.parentTrxId}', ${item.originalIndex}, this)">
-                <div class="flex-1 item-text">
-                    <div class="flex justify-between items-center mb-1">
-                        <div class="flex gap-2 items-center">
-                            <span class="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">${item.parentTrxId}</span>
-                            <span class="text-[9px] ${jenis === 'Barang Masuk' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'} px-1.5 py-0.5 rounded font-bold uppercase">
-                                ${item.parentCategory}
-                            </span>
-                        </div>
-                        <span class="text-[9px] text-gray-400 font-medium">${item.parentDate}</span>
-                    </div>
-                    <span class="text-sm font-bold text-slate-700 block leading-tight">${item.nama}</span>
-                    <div class="flex justify-between items-center mt-1">
-                        <span class="text-xs text-slate-500 font-medium">${item.qty} pcs</span>
-                        <span class="text-[10px] text-gray-400 italic">${item.parentSub}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="status-icon"><i class="fas fa-clock text-slate-200 text-xs"></i></div>
-        `;
-        list.appendChild(div);
-    });
-    
-    // Tampilkan modal
-    document.getElementById('detailModal').classList.add('active');
-}
-    
-// Update status ke backend (Tetap tampil di modal dengan status visual)
-async function updateCheckedStatus(trxId, index, checkbox) {
-    const row = checkbox.closest('.item-row-detail');
-    
-    // Efek visual langsung
-    if (checkbox.checked) {
-        row.classList.add('opacity-40', 'bg-slate-50');
-    } else {
-        row.classList.remove('opacity-40', 'bg-slate-50');
-    }
-
-    // Update ke database Google Sheets (tetap berjalan di background)
-    try {
-        const url = `${WEB_APP_URL}?action=updateChecked&trxId=${trxId}&index=${index}&checked=${checkbox.checked}`;
-        await fetch(url);
-    } catch (e) {
-        console.error("Gagal sinkronisasi ceklis ke Sheets");
-    }
-}
-
-function closeDetailModal() {
-    const modal = document.getElementById('detailModal');
-    
-    // 1. Cari semua checkbox di dalam list modal
-    const checkboxes = document.querySelectorAll('#detailItemList input[type="checkbox"]');
-    
-    // 2. Cek apakah ada minimal satu yang tercentang (checked)
-    const isAnyChecked = Array.from(checkboxes).some(cb => cb.checked);
-
-    // 3. Logika Approve Otomatis
-    if (currentActiveAntrianId) {
-        if (isAnyChecked) {
-            console.log("Item ditemukan tercentang. Menjalankan Auto-Approve...");
-            handleApprove(currentActiveAntrianId);
-        } else {
-            console.log("Tidak ada item diceklis. Membatalkan Auto-Approve.");
-            showToast("Antrian tetap disimpan (tidak ada item diceklis)", false);
-        }
-        
-        // Reset ID aktif agar tidak nyangkut ke klik berikutnya
-        currentActiveAntrianId = null; 
-    }
-
-    // 4. Tutup Modal dengan animasi
-    if (modal) {
-        modal.classList.remove('active');
-        setTimeout(() => { modal.style.display = 'none'; }, 300);
-    }
-}
-
-async function recalculateStock() {
+  async function recalculateStock() {
   if (!confirm("Fitur ini akan menghitung ulang seluruh saldo stok berdasarkan Riwayat Transaksi. Lanjutkan?")) return;
 
   setProcessingState(true);
@@ -958,45 +861,22 @@ function filterTableStok() {
   }
 }
 
-    function initRealtime() {
-      _supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'antrian' }, () => {
-        if (!isProcessing && itemsInProcess.length === 0) loadAntrian();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stok' }, () => {
-        if (!isProcessing) loadStok();
-      })
-      .subscribe();
-    }
+   function initRealtime() {
+  _supabase.channel('db-changes')
+    // Listener untuk tabel Stok (Tetap ada)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stok' }, () => {
+      if (!isProcessing) loadStok();
+    })
+    // Listener untuk tabel Riwayat (Baru: Menggantikan antrian)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'riwayat' }, () => {
+      if (!isProcessing) loadRiwayat();
+    })
+    .subscribe();
+}
 
-    window.onload = () => { addItemRow(); loadStok(); initRealtime(); };
+   window.onload = () => { addItemRow(); loadStok(); initRealtime(); };
 
 
   </script>
-
-
-  
-<div id="detailModal" class="fixed inset-0 bg-black/60 z-[2000] hidden items-end justify-center">
-    <div class="modal-content bg-white w-full max-w-md rounded-t-3xl p-6 max-h-[85vh] overflow-hidden flex flex-col shadow-2xl translate-y-full transition-transform duration-300">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h3 id="modalTitle" class="text-lg font-bold text-slate-800">Antrian Produksi</h3>
-                <p id="modalSub" class="text-xs text-slate-500"></p>
-            </div>
-            <button onclick="closeDetailModal()" class="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-400">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div id="detailItemList" class="space-y-3 overflow-y-auto pr-2 custom-scroll">
-            </div>
-
-        <div class="mt-6">
-            <button onclick="closeDetailModal()" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-colors">
-                Tutup Jendela
-            </button>
-        </div>
-    </div>
-</div>
-  
 </body>
 </html>

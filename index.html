@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Muflih Print - Inventory Bulk Action</title>
+  <title>Muflih Print - Inventory & Sales</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -19,77 +19,31 @@
       background: #6366f1; z-index: 10000; transition: width 0.3s ease;
     }
 
-    input[type="checkbox"] {
-      width: 20px; height: 20px; accent-color: #6366f1; cursor: pointer;
-    }
-
-    .bulk-action-bar {
-      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-      width: calc(100% - 2rem); max-width: 448px;
-      background: #1e293b; color: white; padding: 12px 20px;
-      border-radius: 1rem; display: flex; align-items: center; justify-content: space-between;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); z-index: 100;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .bulk-action-bar.hidden { display: none !important; transform: translateX(-50%) translateY(100px); opacity: 0; }
+    /* Modal Styles */
+    .status-masuk { border-left: 4px solid #10b981; background: #f0fdf4; }
+    .status-abaikan { border-left: 4px solid #ef4444; background: #fef2f2; opacity: 0.7; }
+    .status-none { border-left: 4px solid #94a3b8; }
+    .btn-status { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 12px; }
     
-    button:disabled, input:disabled {
-      opacity: 0.5;
-      cursor: not-allowed !important;
-    }
+    .status-processed { background: #dcfce7; color: #166534; }
+    .status-pending { background: #fef9c3; color: #854d0e; }
 
-    .item-processing {
-      opacity: 0.6;
-      pointer-events: none;
-      position: relative;
-    }
-    
-    .loading-overlay {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(255,255,255,0.4); z-index: 10; border-radius: 1rem;
-    }
+    .filter-chip { padding: 6px 16px; border-radius: 99px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+    .filter-chip.active { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+    .filter-chip.inactive { background: #f1f5f9; color: #64748b; }
 
-    /* Style untuk item yang sudah terceklist */
-#detailModal.active { display: flex; }
-#detailModal.active .modal-content { transform: translateY(0); }
-
-.item-row-detail {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 1rem; border: 1px solid #f1f5f9; border-radius: 1rem;
-    background-color: #f8fafc; transition: all 0.2s;
-}
-
-.checked-item {
-    background-color: #f1f5f9 !important;
-    opacity: 0.6;
-}
-
-.checked-item .item-text {
-    text-decoration: line-through;
-    color: #94a3b8;
-}
-
-/* Scrollbar halus untuk modal */
-.custom-scroll::-webkit-scrollbar { width: 4px; }
-.custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-    
-    
-/* Catalog Styles */
     #catalogOverlay {
       position: fixed; inset: 0; background: #f8fafc; z-index: 1000;
       display: flex; flex-direction: column; transform: translateY(100%);
       transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     #catalogOverlay.active { transform: translateY(0); }
-
   </style>
 </head>
 <body class="p-4 pb-24 text-slate-800">
 
   <div id="topProgressBar"></div>
 
-  <!-- Notifikasi Toast -->
   <div id="statusToast" class="fixed top-4 right-4 left-4 bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl z-[9999] transform -translate-y-24 transition-transform duration-300 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <i class="fas fa-circle-notch animate-spin" id="toastIcon"></i>
@@ -99,20 +53,17 @@
 
   <div class="mb-6 text-center text-white">
     <h1 class="text-xl font-bold tracking-widest uppercase">Muflih Print</h1>
-    <p class="text-xs opacity-60">Inventory System - Bulk Management</p>
+    <p class="text-xs opacity-60">Inventory & Sales System</p>
   </div>
 
   <div id="main-content" class="max-w-md mx-auto">
     
-    <!-- TAB: INPUT -->
     <div id="tab-input" class="glass-card p-5 shadow-xl">
       <h2 class="font-bold mb-4 flex items-center text-indigo-700"><i class="fas fa-plus-circle mr-2"></i> Transaksi Baru</h2>
-
       <div class="mb-4">
-    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Keterangan / Nama Pelanggan</label>
-    <input type="text" id="inputKeterangan" class="mt-1 block w-full p-3 bg-gray-50 border border-gray-200 font-bold text-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contoh: Pesanan Bpk. Andi / Stok Masuk Toko" required>
-  </div>
-      
+        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Keterangan / Nama Pelanggan</label>
+        <input type="text" id="inputKeterangan" class="mt-1 block w-full p-3 bg-gray-50 border border-gray-200 font-bold text-slate-700 rounded-lg outline-none" placeholder="Contoh: Pesanan Bpk. Andi">
+      </div>
       <div class="mb-4">
         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Jenis Transaksi</label>
         <select id="inputJenisGlobal" class="mt-1 block w-full p-3 bg-indigo-50 border-none font-bold text-indigo-700 rounded-lg">
@@ -120,26 +71,57 @@
           <option value="Barang Keluar">Barang Keluar</option>
         </select>
       </div>
-
       <form id="stokForm" class="space-y-4">
         <div id="itemContainer" class="space-y-3"></div>
-        <button type="button" id="btnAddItem" onclick="addItemRow()" class="w-full py-2 border-2 border-dashed border-indigo-200 text-indigo-500 rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center justify-center gap-2">
-          <i class="fas fa-plus"></i> TAMBAH BARANG LAIN
+        <button type="button" onclick="addItemRow()" class="w-full py-2 border-2 border-dashed border-indigo-200 text-indigo-500 rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center justify-center gap-2">
+          <i class="fas fa-plus"></i> TAMBAH BARANG
         </button>
         <div class="pt-4">
-  <button type="submit" id="btnSubmitForm" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-    <i class="fas fa-save" id="iconSave"></i>
-    <i class="fas fa-circle-notch animate-spin hidden" id="iconLoading"></i>
-    <span id="btnText">SIMPAN TRANSAKSI</span>
-  </button>
-</div>
+          <button type="submit" id="btnSubmitForm" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
+            <i class="fas fa-save" id="iconSave"></i>
+            <i class="fas fa-circle-notch animate-spin hidden" id="iconLoading"></i>
+            <span id="btnText">SIMPAN TRANSAKSI</span>
+          </button>
+        </div>
       </form>
     </div>
 
-  
+    <div id="tab-penjualan" class="hidden space-y-4">
+      <div class="glass-card p-4 shadow-md">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-black text-slate-800 text-sm uppercase">Data Penjualan</h3>
+          <button onclick="fetchPenjualanData(true)" class="text-indigo-600 p-2">
+  <i id="syncIconPenjualan" class="fas fa-sync-alt"></i>
+</button>
+        </div>
 
-    <!-- TAB: RIWAYAT -->
-    <div id="tab-riwayat" class="hidden space-y-4">
+        <input type="text" id="searchPenjualan" onkeyup="renderPenjualan(window.lastSalesData)" 
+           class="w-full p-2 bg-gray-100 border-none rounded-lg text-sm mb-3" 
+           placeholder="Cari Invoice atau Nama Barang...">
+        
+        <div class="flex gap-2 mb-2 overflow-x-auto pb-2">
+          <div id="filter-pending" onclick="setSalesFilter('pending')" class="filter-chip active">Belum</div>
+          <div id="filter-done" onclick="setSalesFilter('done')" class="filter-chip inactive">Selesai</div>
+          <div id="filter-all" onclick="setSalesFilter('all')" class="filter-chip inactive">Semua</div>
+        </div>
+      </div>
+      <div class="glass-card overflow-hidden">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase">
+            <tr>
+              <th class="px-4 py-3">Waktu</th>
+              <th class="px-4 py-3">Invoice</th>
+              <th class="px-4 py-3">Item</th>
+                          </tr>
+          </thead>
+          <tbody id="penjualanBody" class="divide-y divide-slate-100 bg-white">
+            <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400 italic">Klik tombol sinkron atau pindah tab.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+<div id="tab-riwayat" class="hidden space-y-4">
       <div class="glass-card p-4 shadow-md">
         <div class="relative mb-3">
           <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -167,95 +149,56 @@
     </button>
   </div>
 </div>
-  
-    <!-- TAB: STOK -->
-<div id="tab-stok" class="hidden">
-  <div class="flex justify-between items-center mb-3">
-    <h3 class="text-white font-bold text-sm">Posisi Stok Terkini</h3>
-    <div class="flex gap-2">
-      <button onclick="recalculateStock()" class="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition">
-        <i class="fas fa-sync-alt" id="syncIcon"></i> RE-STOK
-      </button>
-      <button onclick="openCatalog()" class="bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition">
-        <i class="fas fa-book-open"></i> LIHAT KATALOG
-      </button>
-    </div>
-  </div>
 
-  <div class="glass-card p-3 mb-3 shadow-md">
-    <div class="relative">
-      <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-      <input type="text" id="searchStok" onkeyup="filterTableStok()" class="w-full pl-10 p-2 bg-gray-100 border-none rounded-lg text-sm" placeholder="Cari nama stok...">
-    </div>
-  </div>
-
-  <div class="glass-card overflow-hidden">
-    <table class="w-full" id="mainTableStok">
-      <thead class="bg-gray-100 text-[10px] uppercase text-gray-600">
-        <tr>
-          <th class="px-4 py-3 text-left">Produk</th>
-          <th class="px-4 py-3 text-right">Sisa Stok</th>
-        </tr>
-      </thead>
-      <tbody id="tableStok" class="divide-y divide-gray-200 bg-white"></tbody>
-    </table>
-  </div>
-</div>
-
-  </div>
-
- <!-- CATALOG OVERLAY -->
-  <div id="catalogOverlay">
-    <div class="bg-white p-4 flex items-center justify-between border-b sticky top-0 z-10 shadow-sm">
-      <div class="flex items-center gap-3">
-        <button onclick="closeCatalog()" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600">
-          <i class="fas fa-arrow-left"></i>
+    <div id="tab-stok" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-white font-bold text-sm">Posisi Stok</h3>
+        <button onclick="recalculateStock()" class="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+          <i class="fas fa-sync-alt" id="syncIcon"></i> RE-STOK
         </button>
+      </div>
+      <div class="glass-card p-3 shadow-md">
+        <input type="text" id="searchStok" 
+       oninput="renderStok(masterStok)" 
+       class="w-full p-2 bg-gray-100 border-none rounded-lg text-sm" 
+       placeholder="Cari nama stok...">
+      </div>
+      <div class="glass-card overflow-hidden">
+        <table class="w-full">
+          <tbody id="tableStok" class="divide-y divide-gray-200 bg-white"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="modalEdit" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal()"></div>
+    <div id="modalContainer" class="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0 flex flex-col max-h-[90vh]">
+      <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
         <div>
-          <h2 class="font-black text-slate-800 uppercase tracking-tight">Katalog Blangko</h2>
-          <p class="text-[9px] text-gray-500 uppercase font-bold">Daftar Produk & Harga</p>
+          <h3 class="font-black text-slate-800 text-sm uppercase">Detail Item Transaksi</h3>
+          <p id="modalTransactionRef" class="text-[10px] font-mono text-indigo-600 font-bold"></p>
         </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times-circle text-xl"></i></button>
       </div>
-      <div class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold" id="catalogCount">0 Item</div>
-    </div>
-    
-    <div class="flex-1 overflow-y-auto p-4">
-      <div class="relative mb-4">
-        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-        <input type="text" id="searchCatalog" onkeyup="filterCatalog()" class="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all shadow-sm" placeholder="Cari nama blangko...">
-      </div>
-
-      <div id="catalogGrid" class="grid grid-cols-2 gap-3 pb-8">
-        <!-- Catalog items here -->
+      <div id="modalItemsList" class="p-4 space-y-4 overflow-y-auto flex-1"></div>
+      <div class="p-4 bg-slate-50 border-t">
+        <button id="btnSubmitModal" onclick="submitStokKeluar()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg transition flex items-center justify-center">
+          <i class="fas fa-save mr-2"></i> Simpan Item Terpilih
+        </button>
       </div>
     </div>
   </div>
 
-
-
-  <!-- Bulk Action Bar -->
-  <div id="bulkActionBar" class="bulk-action-bar hidden">
-    <div class="text-xs">
-      <span id="selectedCount" class="font-black text-indigo-400">0</span> Item dipilih
-    </div>
-    <div class="flex gap-2">
-      <button id="btnBulkDelete" onclick="handleDelete(selectedAntrianIds)" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
-        HAPUS TERPILIH
-      </button>
-      <button id="btnBulkApprove" onclick="handleApprove(selectedAntrianIds)" class="bg-indigo-500 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-indigo-400 transition shadow-lg">
-        APPROVE SEMUA
-      </button>
-    </div>
-  </div>
-
-  <datalist id="produkList"></datalist>
-
-  <!-- Bottom Nav -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-2 flex justify-between shadow-2xl z-50">
     <button onclick="showTab('input')" id="nav-input" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2 active">
       <i class="fas fa-plus-square text-lg"></i><span class="text-[9px] mt-1">Input</span>
     </button>
-       <button onclick="showTab('riwayat')" id="nav-riwayat" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
+    <button onclick="showTab('penjualan')" id="nav-penjualan" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
+      <i class="fas fa-shopping-cart text-lg"></i><span class="text-[9px] mt-1">Penjualan</span>
+    </button>
+    <button onclick="showTab('riwayat')" id="nav-riwayat" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
       <i class="fas fa-history text-lg"></i><span class="text-[9px] mt-1">Riwayat</span>
     </button>
     <button onclick="showTab('stok')" id="nav-stok" class="nav-btn flex-1 flex flex-col items-center text-gray-400 py-2">
@@ -263,23 +206,48 @@
     </button>
   </nav>
 
+  <datalist id="produkList"></datalist>
+
   <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwDEILk3CkhVWFny74OCi8kXJXhb51sQMF0E1wlah9TbjG864q3iKNUNjZvlyWHlJTU6Q/exec";
+    // KONFIGURASI URL
     const SUPABASE_URL = "https://zqxeoveanevsvynptckm.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVvdmVhbmV2c3Z5bnB0Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzUzODEsImV4cCI6MjA4OTg1MTM4MX0.eeIaytpW1wtWPJc2FbhufkDkhONUt9yypTZU4dTVmsM";
+    const SHEET_SALES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=2057149863&single=true&output=csv";
+    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzEY6Pazj1Vur4LboaIdAgR8LRYJqQ8e4QQGiBElyQrYxxMMTdIZaUTkwCzbwtEiRJNjA/exec"; 
+
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // STATE MANAGEMENT
     let masterRiwayat = [];
- let masterCatalog = [];
-    let currentTab = 'input';
-    let dataLoaded = { antrian: false, riwayat: false, stok: false };
-    let selectedAntrianIds = [];
+    let dataLoaded = { riwayat: false, stok: false, penjualan: false };
     let isProcessing = false;
-    let itemsInProcess = []; 
+    let isSubmitting = false; // Untuk modal penjualan
+    let currentSalesFilter = 'pending';
+    let processedInvoices = new Set(); 
+    let storedItemsLog = new Set();
+    let currentSelectedTransaction = null;
+    let masterStok = [];
+
+    
 let currentPage = 1;
-const itemsPerPage = 20;
-let filteredRiwayat = []; // Untuk menyimpan hasil filter sebelum di-paginate
-    let currentActiveAntrianId = null; // Menampung ID antrian yang sedang dibuka modalnya
+const itemsPerPage = 10; // Jumlah item per halaman
+
+    // FUNGSI NAVIGASI
+    function showTab(name) {
+      if (isProcessing) return;
+      ['input', 'penjualan', 'riwayat', 'stok'].forEach(t => {
+        document.getElementById('tab-' + t).classList.add('hidden');
+        document.getElementById('nav-' + t).classList.remove('active', 'text-indigo-600');
+      });
+      document.getElementById('tab-' + name).classList.remove('hidden');
+      document.getElementById('nav-' + name).classList.add('active', 'text-indigo-600');
+      
+      if (name === 'riwayat' && !dataLoaded.riwayat) loadRiwayat();
+      if (name === 'stok' && !dataLoaded.stok) loadStok();
+      if (name === 'penjualan' && !dataLoaded.penjualan) fetchPenjualanData();
+    }
+
+    // --- FUNGSI UI & INDICATOR ---
 
 function setProcessingState(isProcessing) {
   const btn = document.getElementById('btnSubmitForm');
@@ -300,300 +268,52 @@ function setProcessingState(isProcessing) {
   }
 }
 
-    function showToast(msg, isError = false) {
-      const toast = document.getElementById('statusToast');
-      const toastMsg = document.getElementById('toastMsg');
-      const toastIcon = document.getElementById('toastIcon');
-      toastMsg.innerText = msg;
-      toast.classList.remove('-translate-y-24');
-      toast.classList.add('translate-y-0');
-      if(isError) {
-        toast.classList.remove('bg-indigo-600'); toast.classList.add('bg-red-600');
-        toastIcon.className = 'fas fa-exclamation-triangle';
-        setTimeout(() => hideToast(), 4000);
-      } else {
-        toast.classList.remove('bg-red-600'); toast.classList.add('bg-indigo-600');
-        toastIcon.className = 'fas fa-circle-notch animate-spin';
-      }
-    }
-
-    function hideToast() {
-      document.getElementById('statusToast').classList.replace('translate-y-0', '-translate-y-24');
-    }
-
-    function updateProgress(percent) {
-      document.getElementById('topProgressBar').style.width = percent + '%';
-    }
-
-   function showTab(name) {
-  if (isProcessing) return;
-  currentTab = name;
-
-  // 1. Sembunyikan semua tab dan matikan status aktif pada nav (Hapus 'antrian' dari list)
-  ['input', 'riwayat', 'stok'].forEach(t => {
-    const tabEl = document.getElementById('tab-' + t);
-    const navEl = document.getElementById('nav-' + t);
-    if (tabEl) tabEl.classList.add('hidden');
-    if (navEl) navEl.classList.remove('active', 'text-indigo-600');
-  });
-
-  // 2. Tampilkan tab yang dipilih
-  const targetTab = document.getElementById('tab-' + name);
-  const targetNav = document.getElementById('nav-' + name);
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('statusToast');
+  const toastMsg = document.getElementById('toastMsg');
+  const toastIcon = document.getElementById('toastIcon');
   
-  if (targetTab) targetTab.classList.remove('hidden');
-  if (targetNav) targetNav.classList.add('active', 'text-indigo-600');
-
-  // --- 3. LOGIKA LOADING UNTUK MASING-MASING TAB ---
-
-  // UNTUK RIWAYAT
-  if (name === 'riwayat' && !dataLoaded.riwayat) {
-    const listRiwayat = document.getElementById('listRiwayat');
-    if (listRiwayat) {
-      listRiwayat.innerHTML = 
-        '<div class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Riwayat...</div>';
-    }
-    loadRiwayat();
-  }
-
-  // UNTUK STOK & INPUT (Keduanya butuh data stok untuk autocomplete/list)
-  if ((name === 'stok' || name === 'input') && !dataLoaded.stok) {
-    // Tampilkan loading hanya jika kita berada di tab Stok
-    if (name === 'stok') {
-      const tbody = document.getElementById('tableStok');
-      if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600"></i> Memuat Data...</td></tr>';
-      }
-    }
-    loadStok(); 
+  toastMsg.innerText = msg;
+  toast.classList.remove('-translate-y-24');
+  toast.classList.add('translate-y-0');
+  
+  if(isError) {
+    toast.classList.remove('bg-indigo-600'); 
+    toast.classList.add('bg-red-600');
+    toastIcon.className = 'fas fa-exclamation-triangle'; // Ikon peringatan untuk error
+    setTimeout(() => hideToast(), 4000);
+  } else {
+    toast.classList.remove('bg-red-600'); 
+    toast.classList.add('bg-indigo-600');
+    toastIcon.className = 'fas fa-circle-notch animate-spin'; // Ikon loading untuk proses sukses/jalan
   }
 }
 
+function hideToast() {
+  document.getElementById('statusToast').classList.replace('translate-y-0', '-translate-y-24');
+}
+
+    // LOGIKA TAB INPUT
     function addItemRow() {
-  const container = document.getElementById('itemContainer');
-  const rowId = Date.now();
-  const div = document.createElement('div');
-  div.className = "flex gap-2 items-end group animate-in slide-in-from-top-2 duration-200";
-  div.id = `row-${rowId}`;
-  div.innerHTML = `
-    <div class="flex-1">
-      <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-tight">Nama Barang</label>
-      <input type="text" 
-             name="namaBarang" 
-             list="produkList" 
-             oninput="this.value = this.value.toUpperCase()" 
-             class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm uppercase" 
-             placeholder="KETIK NAMA..." 
-             required>
-    </div>
-    <div class="w-24">
-      <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-tight">Jumlah</label>
-      <input type="text" 
-             name="jumlahBarang" 
-             inputmode="numeric" 
-             oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-             class="mt-1 block w-full p-2.5 bg-gray-50 border rounded-lg text-sm no-spinner" 
-             placeholder="0" 
-             required>
-    </div>
-    <button type="button" onclick="removeItemRow('${rowId}')" class="p-2.5 text-red-300 hover:text-red-500 transition mb-[2px]">
-      <i class="fas fa-times-circle"></i>
-    </button>
-  `;
-  container.appendChild(div);
-}
-
-    function removeItemRow(id) {
-      if (isProcessing) return;
-      const row = document.getElementById(`row-${id}`);
-      if (document.querySelectorAll('#itemContainer > div').length > 1) {
-        row.remove();
-      } else {
-        showToast("Minimal 1 barang", true);
-      }
+      const container = document.getElementById('itemContainer');
+      const rowId = Date.now();
+      const div = document.createElement('div');
+      div.className = "flex gap-2 items-end animate-in slide-in-from-top-2 duration-200";
+      div.id = `row-${rowId}`;
+      div.innerHTML = `
+        <div class="flex-1">
+          <input type="text" name="namaBarang" list="produkList" oninput="this.value = this.value.toUpperCase()" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm" placeholder="Nama Barang" required>
+        </div>
+        <div class="w-20">
+          <input type="number" name="jumlahBarang" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm" placeholder="Qty" required>
+        </div>
+        <button type="button" onclick="document.getElementById('row-${rowId}').remove()" class="p-2 text-red-300"><i class="fas fa-times-circle"></i></button>
+      `;
+      container.appendChild(div);
     }
 
-document.getElementById('stokForm').onsubmit = async function(e) {
-  e.preventDefault();
-  if (isProcessing) return;
-  
-  const keterangan = document.getElementById('inputKeterangan').value.trim();
-  if (!keterangan) {
-    showToast("Keterangan wajib diisi!", true);
-    document.getElementById('inputKeterangan').focus();
-    return;
-  }
 
-  const rows = document.querySelectorAll('#itemContainer > div');
-  const jenis = document.getElementById('inputJenisGlobal').value;
-  const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-
-  // --- VALIDASI DUPLIKASI (Tetap Dipertahankan) ---
-  for (let row of rows) {
-    const namaBarang = row.querySelector('[name="namaBarang"]').value.trim().toUpperCase();
-    const jumlah = parseInt(row.querySelector('[name="jumlahBarang"]').value);
-    
-    if (!namaBarang || isNaN(jumlah)) continue;
-
-    // Cek tabel RIWAYAT (Sama Barang, Sama Jumlah, Sama Jenis, Hari Ini)
-    const { data: duplicateRiwayat } = await _supabase
-      .from('riwayat')
-      .select('id')
-      .eq('nama_barang', namaBarang)
-      .eq('jumlah', jumlah)
-      .eq('jenis', jenis)
-      .gte('created_at', `${today}T00:00:00`)
-      .lte('created_at', `${today}T23:59:59`);
-
-    const totalDuplikat = (duplicateRiwayat?.length || 0);
-
-    if (totalDuplikat > 0) {
-      const konfirmasi = confirm(`Peringatan: Anda telah menginput "${namaBarang}" sebagai "${jenis}" dengan jumlah yang sama sebanyak ${totalDuplikat} kali hari ini.\n\nLanjutkan simpan langsung?`);
-      if (!konfirmasi) return; 
-    }
-  }
-  // --- END VALIDASI DUPLIKASI ---
-
-  setProcessingState(true);
-  showToast(`Memproses ${rows.length} item...`);
-  updateProgress(10);
-  
-  try {
-    let count = 0;
-    for (let row of rows) {
-      const namaBarang = row.querySelector('[name="namaBarang"]').value.trim().toUpperCase();
-      const jumlah = parseInt(row.querySelector('[name="jumlahBarang"]').value);
-      
-      if (!namaBarang || isNaN(jumlah)) continue;
-
-      // 1. Ambil data stok saat ini
-      const { data: currentStok } = await _supabase
-        .from('stok')
-        .select('*')
-        .eq('nama', namaBarang)
-        .maybeSingle();
-
-      const change = (jenis === 'Barang Masuk') ? jumlah : -jumlah;
-      const sisaBaru = (currentStok ? currentStok.sisa : 0) + change;
-
-      // 2. Update atau Buat data stok baru
-      if (currentStok) {
-        await _supabase.from('stok').update({ 
-          sisa: sisaBaru, 
-          updated_at: new Date().toISOString() 
-        }).eq('nama', namaBarang);
-      } else {
-        await _supabase.from('stok').insert([{ nama: namaBarang, sisa: change }]);
-      }
-
-      // 3. Simpan langsung ke Riwayat (Bukan Antrian)
-      const { error: riwayatErr } = await _supabase
-        .from('riwayat')
-        .insert([{ 
-          jenis: jenis, 
-          nama_barang: namaBarang, 
-          jumlah: jumlah,
-          keterangan: keterangan 
-        }]);
-      
-      if (riwayatErr) throw riwayatErr;
-      
-      count++;
-      updateProgress(10 + ((count / rows.length) * 80));
-    }
-    
-    // Reset Form & UI
-    document.getElementById('inputKeterangan').value = ''; 
-    document.getElementById('itemContainer').innerHTML = '';
-    addItemRow();
-    updateProgress(100);
-    showToast('Berhasil diproses dan disimpan ke riwayat!');
-    
-    dataLoaded.riwayat = false;
-    dataLoaded.stok = false; 
-
-    setTimeout(() => { 
-      hideToast(); 
-      updateProgress(0); 
-      setProcessingState(false);
-      showTab('riwayat'); // Pindah ke tab riwayat untuk melihat hasil
-    }, 800);
-  } catch (err) { 
-    console.error(err);
-    showToast('Gagal: ' + err.message, true); 
-    updateProgress(0); 
-    setProcessingState(false);
-  }
-};
-    
-    async function loadRiwayat() {
-  try {
-    const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });
-    masterRiwayat = data || [];
-    dataLoaded.riwayat = true;
-    currentPage = 1; // Reset ke halaman pertama saat load baru
-    setFilterDate('today'); 
-  } catch (err) { console.error(err); }
-}
-
-    function renderRiwayat(items) {
-      const container = document.getElementById('listRiwayat');
-      container.innerHTML = items.length === 0 ? '<div class="glass-card p-4 text-center text-gray-400 text-xs italic">Tidak ada riwayat</div>' : '';
-      
-      items.forEach(row => {
-        const dateObj = new Date(row.created_at);
-        // Format: 25/03/2026
-        const formattedDate = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        // Format: 15.51
-        const formattedTime = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-        const div = document.createElement('div');
-        div.className = `glass-card p-3 text-sm border-l-4 ${row.jenis === 'Barang Masuk' ? 'border-green-500' : 'border-red-500'}`;
-        div.innerHTML = `
-          <div class="flex justify-between items-center mb-1">
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] text-indigo-600 font-bold">${formattedDate}</span>
-              <span class="text-[10px] text-gray-400 font-mono">${formattedTime}</span>
-            </div>
-            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${row.jenis === 'Barang Masuk' ? 'badge-masuk' : 'badge-keluar'}">${row.jenis}</span>
-          </div>
-          <div class="flex justify-between items-end">
-            <div class="font-bold text-slate-700 leading-tight">${row.nama_barang}</div>
-            <div class="text-[9px] text-gray-400">Ket: ${row.keterangan || '-'}</div>
-            <div class="font-black text-lg text-indigo-700">${row.jumlah}</div>
-          </div>`;
-        container.appendChild(div);
-      });
-    }
-
-    async function loadStok() {
-      try {
-        const { data } = await _supabase.from('stok').select('*').order('nama', { ascending: true });
-        dataLoaded.stok = true;
-        const tbody = document.getElementById('tableStok');
-        if (tbody) tbody.innerHTML = '';
-        
-        const dl = document.getElementById('produkList');
-        dl.innerHTML = '';
-        
-        data.forEach(item => {
-          if (tbody) {
-            tbody.innerHTML += `
-              <tr class="hover:bg-slate-50">
-                <td class="px-4 py-4 text-sm font-medium text-slate-700">${item.nama}</td>
-                <td class="px-4 py-4 text-right font-bold text-sm ${item.sisa < 5 ? 'text-red-600 animate-pulse' : 'text-slate-900'}">
-                  ${item.sisa}
-                </td>
-              </tr>`;
-          }
-          let opt = document.createElement('option'); 
-          opt.value = item.nama; 
-          dl.appendChild(opt);
-        });
-      } catch (err) { console.error(err); }
-    }
-
-    function setFilterDate(type) {
+   function setFilterDate(type) {
       const now = new Date();
       const btns = { today: 'btnFilterToday', month: 'btnFilterMonth', all: 'btnFilterAll' };
       Object.values(btns).forEach(id => {
@@ -633,25 +353,42 @@ document.getElementById('stokForm').onsubmit = async function(e) {
 
 
 function updatePaginationView() {
+  const q = document.getElementById('searchRiwayat').value.toLowerCase();
+  const s = document.getElementById('dateStart').value;
+  const e = document.getElementById('dateEnd').value;
+  
+  // 1. Lakukan filtering langsung dari masterRiwayat
+  const itemsTerfilter = masterRiwayat.filter(item => {
+    const tgl = item.created_at.split('T')[0];
+    const matchQuery = item.nama_barang.toLowerCase().includes(q) || 
+                       (item.keterangan && item.keterangan.toLowerCase().includes(q));
+    const matchDate = (!s || tgl >= s) && (!e || tgl <= e);
+    return matchQuery && matchDate;
+  });
+  
+  // 2. Hitung index untuk pagination
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedItems = filteredRiwayat.slice(startIndex, endIndex);
+  const paginatedItems = itemsTerfilter.slice(startIndex, endIndex);
   
-  // Tampilkan/Sembunyikan navigasi pagination
+  // 3. Kontrol Navigasi Pagination
   const nav = document.getElementById('paginationRiwayat');
-  if (filteredRiwayat.length > itemsPerPage) {
+  const totalPages = Math.ceil(itemsTerfilter.length / itemsPerPage);
+
+  if (itemsTerfilter.length > itemsPerPage) {
     nav.classList.remove('hidden');
-    document.getElementById('pageIndicator').innerText = `Hal ${currentPage} / ${Math.ceil(filteredRiwayat.length / itemsPerPage)}`;
+    document.getElementById('pageIndicator').innerText = `Hal ${currentPage} / ${totalPages}`;
     document.getElementById('btnPrev').disabled = currentPage === 1;
-    document.getElementById('btnNext').disabled = endIndex >= filteredRiwayat.length;
+    document.getElementById('btnNext').disabled = endIndex >= itemsTerfilter.length;
   } else {
     nav.classList.add('hidden');
   }
   
-  renderRiwayat(paginatedItems);
+  // 4. Panggil render dengan status kosong jika itemsTerfilter.length === 0
+  renderRiwayat(paginatedItems, itemsTerfilter.length === 0, q);
 }
 
-// Fungsi untuk pindah halaman
+// Fungsi pembantu untuk pindah halaman
 function changePage(direction) {
   currentPage += direction;
   updatePaginationView();
@@ -659,115 +396,430 @@ function changePage(direction) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-
-// Catalog Logic
-    async function openCatalog() {
-      document.getElementById('catalogOverlay').classList.add('active');
-      if (!dataLoaded.catalog) {
-        await loadCatalog();
-      }
-    }
-
-    function closeCatalog() {
-      document.getElementById('catalogOverlay').classList.remove('active');
-    }
-
-    async function loadCatalog() {
-      const grid = document.getElementById('catalogGrid');
-      grid.innerHTML = '<div class="col-span-2 text-center py-10"><i class="fas fa-circle-notch animate-spin text-indigo-600 text-3xl"></i></div>';
-      
-      try {
-        const { data, error } = await _supabase.from('products').select('image, nama, harga').order('nama');
-        if (error) throw error;
-        
-        masterCatalog = data || [];
-        dataLoaded.catalog = true;
-        renderCatalog(masterCatalog);
-      } catch (err) {
-        grid.innerHTML = `<div class="col-span-2 bg-red-50 text-red-500 p-4 rounded text-center text-xs">${err.message}</div>`;
-      }
-    }
-
-    function renderCatalog(items) {
-      const grid = document.getElementById('catalogGrid');
-      document.getElementById('catalogCount').innerText = `${items.length} Item`;
-      grid.innerHTML = '';
-      
-      if (items.length === 0) {
-        grid.innerHTML = '<div class="col-span-2 text-center py-20 text-gray-400 text-sm italic">Blangko tidak ditemukan</div>';
-        return;
-      }
-
-      items.forEach(item => {
-        // Handle image extraction (if string or array)
-        let firstImg = "https://via.placeholder.com/300x300?text=No+Image";
-        if (item.image) {
-          try {
-            // Check if it's a JSON string of an array
-            const parsed = typeof item.image === 'string' && item.image.startsWith('[') ? JSON.parse(item.image) : item.image;
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              firstImg = parsed[0];
-            } else if (typeof item.image === 'string' && item.image.includes(',')) {
-              firstImg = item.image.split(',')[0].trim();
-            } else {
-              firstImg = item.image;
-            }
-          } catch(e) {
-            firstImg = item.image;
-          }
-        }
-
-        const div = document.createElement('div');
-        div.className = "bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col animate-in fade-in zoom-in duration-300";
-        div.innerHTML = `
-          <div class="aspect-square bg-gray-50 overflow-hidden">
-            <img src="${firstImg}" alt="${item.nama}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/300x300?text=Error+Load'">
-          </div>
-          <div class="p-3 flex-1 flex flex-col justify-between">
-            <h4 class="text-[11px] font-black text-slate-800 uppercase leading-tight line-clamp-2 mb-1">${item.nama}</h4>
-            <div class="text-indigo-600 font-bold text-xs">Rp ${new Intl.NumberFormat('id-ID').format(item.harga || 0)}</div>
-          </div>
-        `;
-        grid.appendChild(div);
-      });
-    }
-
-    function filterCatalog() {
-      const q = document.getElementById('searchCatalog').value.toLowerCase();
-      const filtered = masterCatalog.filter(i => i.nama.toLowerCase().includes(q));
-      renderCatalog(filtered);
-    }
-
-
-// Mengambil detail dari AppScript
-async function fetchAllPendingItems(id, jenis, namaKlik, qtyKlik) {
-    // Simpan ID antrian ke variabel global agar bisa di-approve otomatis saat modal tutup
-    currentActiveAntrianId = id; 
     
-    showToast(`Memuat antrian ${jenis}...`);
-    try {
-        const response = await fetch(`${WEB_APP_URL}?action=getAllPending&jenis=${encodeURIComponent(jenis)}`);
-        
-        if (!response.ok) throw new Error("Gagal mengambil data dari server");
-        
-        const items = await response.json();
 
-        if (Array.isArray(items) && items.length > 0) {
-            // Teruskan semua data ke fungsi modal
-            displayDetailModal(items, jenis, namaKlik, qtyKlik); 
-            hideToast();
-        } else {
-            showToast(`Tidak ada item ${jenis === 'Barang Masuk' ? 'Pembelian' : 'Penjualan'} yang pending`, true);
-            currentActiveAntrianId = null; // Reset jika data kosong
-        }
-    } catch (e) {
-        console.error("Error Detail:", e);
-        showToast("Gagal terhubung ke server", true);
-        currentActiveAntrianId = null;
+  document.getElementById('stokForm').onsubmit = async function(e) {
+  e.preventDefault();
+  
+  // Ambil data input
+  const rows = document.querySelectorAll('#itemContainer > div');
+  const ket = document.getElementById('inputKeterangan').value;
+  const jenis = document.getElementById('inputJenisGlobal').value;
+
+  // Validasi sederhana jika tidak ada barang yang diinput
+  if (rows.length === 0) {
+    showToast("Tambahkan minimal satu barang!", true);
+    return;
+  }
+
+  // Aktifkan mode loading pada tombol dan tampilkan toast proses
+  setProcessingState(true);
+  showToast("Sedang menyimpan transaksi...");
+
+  try {
+    for (let row of rows) {
+      const nama = row.querySelector('[name="namaBarang"]').value.toUpperCase();
+      const qtyInput = row.querySelector('[name="jumlahBarang"]').value;
+      const qty = parseInt(qtyInput);
+
+      if (!nama || isNaN(qty)) continue; // Lewati jika ada baris kosong
+      
+      // 1. Ambil data stok saat ini dari Supabase
+      const { data: cur, error: fetchError } = await _supabase
+        .from('stok')
+        .select('sisa')
+        .eq('nama', nama)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Kalkulasi perubahan stok
+      const change = (jenis === 'Barang Masuk') ? qty : -qty;
+      const newSisa = (cur ? cur.sisa : 0) + change;
+
+      // 3. Update atau Insert ke tabel 'stok'
+      if (cur) {
+        const { error: updateError } = await _supabase
+          .from('stok')
+          .update({ sisa: newSisa })
+          .eq('nama', nama);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await _supabase
+          .from('stok')
+          .insert([{ nama: nama, sisa: change }]);
+        if (insertError) throw insertError;
+      }
+
+      // 4. Catat ke tabel 'riwayat'
+      const { error: historyError } = await _supabase
+        .from('riwayat')
+        .insert([{ 
+          jenis: jenis, 
+          nama_barang: nama, 
+          jumlah: qty, 
+          keterangan: ket 
+        }]);
+      if (historyError) throw historyError;
     }
+
+    // --- BERHASIL ---
+    showToast("Transaksi Berhasil Disimpan!");
+    
+    // Reset form
+    document.getElementById('inputKeterangan').value = '';
+    document.getElementById('itemContainer').innerHTML = '';
+    addItemRow();
+    
+    // Tandai data perlu di-refresh saat tab dibuka
+    dataLoaded.stok = false;
+    dataLoaded.riwayat = false;
+
+    // Sembunyikan toast sukses setelah 2 detik
+    setTimeout(() => hideToast(), 2000);
+
+  } catch (err) {
+    // --- GAGAL ---
+    console.error("Error saving transaction:", err);
+    showToast("Gagal menyimpan: " + err.message, true);
+  } finally {
+    // Matikan mode loading tombol
+    setProcessingState(false);
+  }
+};
+
+
+
+    // LOGIKA TAB PENJUALAN (FITUR BARU)
+   async function fetchPenjualanData(isManual = false) {
+  const icon = document.getElementById('syncIconPenjualan');
+  const body = document.getElementById('penjualanBody');
+  icon.classList.add('animate-spin');
+  body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">Sinkronisasi data...</td></tr>`;
+
+  try {
+    const histRes = await fetch(SCRIPT_WEB_APP_URL + "?action=getHistory&cache=" + Date.now());
+    const historyData = await histRes.json();
+    
+    storedItemsLog.clear();
+    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });
+
+    const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());
+    const salesCsv = await salesRes.text();
+    const rows = parseCSV(salesCsv);
+    
+    window.lastSalesData = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');
+    
+    processedInvoices.clear();
+    window.lastSalesData.forEach(row => {
+      const inv = row[0].trim();
+      try {
+        const items = JSON.parse(row[10]);
+        if (items.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) processedInvoices.add(inv);
+      } catch(e) {}
+    });
+
+    renderPenjualan(window.lastSalesData);
+    dataLoaded.penjualan = true;
+
+   
+  } catch (err) {
+    showToast("Gagal mengambil data Spreadsheet", true);
+  } finally {
+    icon.classList.remove('animate-spin');
+  }
 }
 
-  async function recalculateStock() {
+  function renderPenjualan(data) {
+  const body = document.getElementById('penjualanBody');
+  const searchInput = document.getElementById('searchPenjualan');
+  const searchText = searchInput ? searchInput.value.toLowerCase() : "";
+  let filtered = data;
+  
+  // 1. Filter berdasarkan status pending/done
+  if (currentSalesFilter === 'pending') {
+    filtered = data.filter(r => !processedInvoices.has(r[0].trim()));
+  } else if (currentSalesFilter === 'done') {
+    filtered = data.filter(r => processedInvoices.has(r[0].trim()));
+  }
+
+  // 2. Filter berdasarkan Pencarian (Invoice atau Nama Barang)
+  if (searchText) {
+    filtered = filtered.filter(row => {
+      const inv = row[0].toLowerCase();
+      const itemsJson = row[10] || "[]";
+      let matchItem = false;
+      
+      try {
+        const items = JSON.parse(itemsJson);
+        // Cek apakah ada salah satu nama barang yang cocok dengan kata kunci
+        matchItem = items.some(item => item.nama.toLowerCase().includes(searchText));
+      } catch (e) {
+        matchItem = false;
+      }
+      
+      return inv.includes(searchText) || matchItem;
+    });
+  }
+
+  // Jika data kosong setelah difilter, tampilkan pesan dengan colspan=3
+  if (filtered.length === 0) {
+    body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400">Tidak ada data.</td></tr>`;
+    return;
+  }
+
+  // Render baris tabel
+  body.innerHTML = filtered.map(row => {
+    const inv = row[0].trim();
+    const isProcessed = processedInvoices.has(inv);
+    const tanggalSaja = row[1].split(' ')[0]; // Menghilangkan jam
+    
+    return `
+      <tr onclick='openModalWithTransaction("${inv}", ${JSON.stringify(row[10]).replace(/'/g, "&apos;")})' 
+          class="hover:bg-indigo-50 cursor-pointer border-b border-slate-50 ${isProcessed ? 'bg-emerald-50/20' : ''}">
+        <td class="px-4 py-4 text-[10px] whitespace-nowrap">${tanggalSaja}</td>
+        <td class="px-4 py-4 font-mono text-xs text-indigo-600 font-bold">${inv}</td>
+        <td class="px-4 py-4 text-xs">${renderItemBadges(inv, row[10])}</td>
+      </tr>`;
+  }).join('');
+}
+    
+
+    function renderItemBadges(inv, json) {
+      try {
+        const items = JSON.parse(json);
+        return items.map(i => {
+          const isDone = storedItemsLog.has(`${inv.trim()}|${i.nama.trim()}`);
+          return `<div class="${isDone ? 'text-emerald-600 line-through opacity-50' : 'text-slate-600'}">• ${i.nama} (${i.qty})</div>`;
+        }).join('');
+      } catch (e) { return 'Error Item'; }
+    }
+
+    function setSalesFilter(f) {
+      currentSalesFilter = f;
+      ['pending', 'done', 'all'].forEach(id => {
+        document.getElementById(`filter-${id}`).classList.toggle('active', id === f);
+        document.getElementById(`filter-${id}`).classList.toggle('inactive', id !== f);
+      });
+      renderPenjualan(window.lastSalesData);
+    }
+
+    // LOGIKA MODAL PENJUALAN
+    function openModalWithTransaction(invoice, jsonStr) {
+      if (isSubmitting) return;
+      currentSelectedTransaction = { invoice, items: JSON.parse(jsonStr) };
+      
+      const list = document.getElementById('modalItemsList');
+      document.getElementById('modalTransactionRef').innerText = invoice;
+      list.innerHTML = '';
+
+      const filtered = currentSelectedTransaction.items.filter(item => !storedItemsLog.has(`${invoice.trim()}|${item.nama.trim()}`));
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="text-center py-10 text-slate-400">Semua item sudah diproses.</div>';
+        document.getElementById('btnSubmitModal').classList.add('hidden');
+      } else {
+        document.getElementById('btnSubmitModal').classList.remove('hidden');
+        filtered.forEach((item, index) => {
+          const div = document.createElement('div');
+          div.id = `item-card-${index}`;
+          div.className = "item-card p-3 rounded-lg border status-none";
+          div.dataset.status = "none";
+          div.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-sm">${item.nama} (Qty: ${item.qty})</span>
+              <div class="flex gap-1">
+                <button onclick="setItemStatus(${index}, 'masuk')" id="btn-m-${index}" class="btn-status bg-slate-100 text-slate-400"><i class="fas fa-check"></i></button>
+                <button onclick="setItemStatus(${index}, 'abaikan')" id="btn-a-${index}" class="btn-status bg-slate-100 text-slate-400"><i class="fas fa-times"></i></button>
+              </div>
+            </div>
+            <input type="number" id="input-qty-${index}" value="${item.qty}" class="w-full p-2 border rounded text-sm">
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      document.getElementById('modalEdit').classList.remove('hidden');
+      setTimeout(() => document.getElementById('modalContainer').classList.replace('opacity-0', 'opacity-100'), 10);
+    }
+
+    function setItemStatus(idx, status) {
+      const card = document.getElementById(`item-card-${idx}`);
+      const btnM = document.getElementById(`btn-m-${idx}`);
+      const btnA = document.getElementById(`btn-a-${idx}`);
+      
+      card.classList.remove('status-masuk', 'status-abaikan', 'status-none');
+      card.classList.add('status-' + status);
+      card.dataset.status = status;
+
+      btnM.className = status === 'masuk' ? "btn-status bg-emerald-500 text-white" : "btn-status bg-slate-100 text-slate-400";
+      btnA.className = status === 'abaikan' ? "btn-status bg-red-500 text-white" : "btn-status bg-slate-100 text-slate-400";
+    }
+
+    function closeModal() {
+      document.getElementById('modalEdit').classList.add('hidden');
+    }
+
+async function submitStokKeluar() {
+  if (isSubmitting) return;
+
+  const cards = document.querySelectorAll('.item-card');
+  const dataToShip = []; // Data untuk Google Sheets
+  const itemsForSupabase = []; // Data untuk Riwayat Supabase
+  const inv = currentSelectedTransaction.invoice.trim();
+  const timestampStr = new Date().toLocaleString('id-ID');
+
+  cards.forEach((card, idx) => {
+    const status = card.dataset.status;
+    if (status !== 'none') {
+      const qty = parseInt(document.getElementById(`input-qty-${idx}`).value) || 0;
+      const name = currentSelectedTransaction.items[idx].nama.trim();
+      const statusLabel = status === 'masuk' ? "MASUK" : "ABAIKAN";
+
+      // 1. Siapkan data untuk Google Sheets
+      dataToShip.push([timestampStr, inv, name, qty, statusLabel]);
+
+      // 2. Jika status "MASUK", siapkan data untuk Supabase
+      if (status === 'masuk') {
+        itemsForSupabase.push({
+          jenis: 'Barang Keluar', 
+          nama_barang: name.toUpperCase(),
+          jumlah: qty,
+          keterangan: `Penjualan: ${inv}`
+        });
+      }
+    }
+  });
+
+  if (dataToShip.length === 0) return showToast("Pilih status item!", true);
+  closeModal();
+  isSubmitting = true;
+   showToast("Memproses data...");
+
+  try {
+    // --- PROSES A: INSERT KE SUPABASE & POTONG STOK ---
+    if (itemsForSupabase.length > 0) {
+      // Masukkan ke tabel Riwayat
+      const { error: errorRiwayat } = await _supabase
+        .from('riwayat')
+        .insert(itemsForSupabase);
+
+      if (errorRiwayat) throw new Error("Gagal simpan riwayat Supabase");
+
+      // Update stok sisa di tabel Stok (looping per item)
+      for (const item of itemsForSupabase) {
+        // Ambil stok saat ini
+        const { data: currentData } = await _supabase
+          .from('stok')
+          .select('sisa')
+          .eq('nama', item.nama_barang)
+          .maybeSingle();
+
+        if (currentData) {
+          // Jika barang sudah ada, kurangi sisa stoknya
+          const sisaBaru = currentData.sisa - item.jumlah;
+          await _supabase
+            .from('stok')
+            .update({ sisa: sisaBaru })
+            .eq('nama', item.nama_barang);
+        } else {
+          // JIKA STOK BELUM ADA: Tambahkan baris produk baru dengan nilai negatif
+          await _supabase
+            .from('stok')
+            .insert([{ 
+              nama: item.nama_barang, 
+              sisa: -item.jumlah 
+            }]);
+        }
+      }
+    }
+
+    // --- PROSES B: KIRIM KE GOOGLE SHEETS ---
+    await fetch(SCRIPT_WEB_APP_URL, { 
+      method: 'POST', 
+      mode: 'no-cors', 
+      body: JSON.stringify(dataToShip) 
+    });
+
+    // --- PROSES C: UPDATE UI (Tanpa Notifikasi Sukses) ---
+    hideToast(); // Sembunyikan toast "Memproses..."
+
+    // Tandai secara lokal agar UI Penjualan terupdate
+    itemsForSupabase.forEach(item => {
+      storedItemsLog.add(`${inv}|${item.nama_barang}`);
+    });
+    
+    // Reset flags agar data di tab lain di-refresh saat dibuka
+    dataLoaded.riwayat = false;
+    dataLoaded.stok = false;
+    
+   
+    fetchPenjualanData(); // Refresh tabel penjualan secara silent
+
+  } catch (e) {
+    console.error(e);
+    showToast("Terjadi kesalahan: " + e.message, true);
+  } finally {
+    isSubmitting = false;
+  }
+}
+    
+    // LOGIKA TAB RIWAYAT & STOK (SUPABASE)
+    async function loadRiwayat() {
+  const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });
+  masterRiwayat = data || [];
+  filteredRiwayat = [...masterRiwayat]; // Inisialisasi data terfilter
+  updatePaginationView(); // Gunakan pagination view sebagai ganti renderRiwayat langsung
+  dataLoaded.riwayat = true;
+}
+
+    function renderRiwayat(items) {
+      const container = document.getElementById('listRiwayat');
+
+      if (items.length === 0) {
+    container.innerHTML = `
+      <div class="glass-card p-8 text-center text-slate-400 italic text-sm">
+        <i class="fas fa-search mb-2 text-2xl block opacity-20"></i>
+        Tidak ada data riwayat ditemukan
+      </div>`;
+    return;
+  }
+      
+      container.innerHTML = items.map(row => `
+        <div class="glass-card p-3 text-sm border-l-4 ${row.jenis === 'Barang Masuk' ? 'border-green-500' : 'border-red-500'}">
+          <div class="flex justify-between text-[10px] font-bold mb-1">
+            <span class="text-indigo-600">${new Date(row.created_at).toLocaleDateString()}</span>
+            <span class="${row.jenis === 'Barang Masuk' ? 'text-green-600' : 'text-red-600'}">${row.jenis}</span>
+          </div>
+          <div class="flex justify-between items-end">
+            <div>
+              <div class="font-bold text-slate-700">${row.nama_barang}</div>
+              <div class="text-[9px] text-gray-400">${row.keterangan || '-'}</div>
+            </div>
+            <div class="font-black text-lg text-indigo-700">${row.jumlah}</div>
+          </div>
+        </div>`).join('');
+    }
+
+ async function loadStok() {
+  const { data, error } = await _supabase.from('stok').select('*').order('nama', { ascending: true });
+  
+  if (error) {
+    console.error("Error loading stok:", error);
+    return;
+  }
+
+  masterStok = data || []; // Simpan data ke variabel global
+  
+  // Update datalist untuk autocomplete di input
+  const dl = document.getElementById('produkList');
+  dl.innerHTML = masterStok.map(item => `<option value="${item.nama}">`).join('');
+  
+  renderStok(masterStok); // Panggil fungsi render
+  dataLoaded.stok = true;
+}
+
+      async function recalculateStock() {
   if (!confirm("Fitur ini akan menghitung ulang seluruh saldo stok berdasarkan Riwayat Transaksi. Lanjutkan?")) return;
 
   setProcessingState(true);
@@ -841,27 +893,57 @@ async function fetchAllPendingItems(id, jenis, namaKlik, qtyKlik) {
   }
 }
     
-function filterTableStok() {
-  const input = document.getElementById("searchStok");
-  const filter = input.value.toUpperCase();
-  const table = document.getElementById("mainTableStok");
-  const tr = table.getElementsByTagName("tr");
+function renderStok(data) {
+  const tbody = document.getElementById('tableStok');
+  const searchTerm = document.getElementById('searchStok').value.toUpperCase();
 
-  // Loop semua baris tabel (lewati header di index 0)
-  for (let i = 1; i < tr.length; i++) {
-    const td = tr[i].getElementsByTagName("td")[0]; // Kolom Produk
-    if (td) {
-      const txtValue = td.textContent || td.innerText;
-      if (txtValue.toUpperCase().indexOf(filter) > -1) {
-        tr[i].style.display = "";
-      } else {
-        tr[i].style.display = "none";
-      }
-    }
+  // Filter data berdasarkan input pencarian
+  const filteredData = data.filter(item => 
+    item.nama.toUpperCase().includes(searchTerm)
+  );
+
+  // Jika hasil filter kosong
+  if (filteredData.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="2" class="px-4 py-10 text-center text-slate-400 italic text-sm">
+          <i class="fas fa-box-open mb-2 text-2xl block opacity-20"></i><br>
+          ${searchTerm ? `Barang "${searchTerm}" tidak ditemukan.` : 'Belum ada data stok.'}
+        </td>
+      </tr>`;
+    return;
   }
-}
 
-   function initRealtime() {
+  // Render data ke tabel
+  tbody.innerHTML = filteredData.map(item => `
+    <tr class="hover:bg-slate-50 transition-colors">
+      <td class="px-4 py-4 text-sm font-medium text-slate-700">${item.nama}</td>
+      <td class="px-4 py-4 text-right font-bold ${item.sisa <= 0 ? 'text-red-500' : 'text-slate-900'}">
+        ${item.sisa}
+      </td>
+    </tr>
+  `).join('');
+}
+    
+     function updateProgress(percent) {
+      document.getElementById('topProgressBar').style.width = percent + '%';
+    }
+
+    // UTILS
+    function parseCSV(text) {
+      return text.split(/\r?\n/).map(line => {
+        const res = []; let cur = '', q = false;
+        for (let i = 0; i < line.length; i++) {
+          if (line[i] === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (line[i] === '"') q = !q;
+          else if (line[i] === ',' && !q) { res.push(cur); cur = ''; }
+          else cur += line[i];
+        }
+        res.push(cur); return res;
+      });
+    }
+
+     function initRealtime() {
   _supabase.channel('db-changes')
     // Listener untuk tabel Stok (Tetap ada)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'stok' }, () => {
@@ -874,8 +956,7 @@ function filterTableStok() {
     .subscribe();
 }
 
-   window.onload = () => { addItemRow(); loadStok(); initRealtime(); };
-
+    window.onload = () => { addItemRow(); loadStok(); initRealtime(); };
 
   </script>
 </body>

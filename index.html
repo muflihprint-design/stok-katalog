@@ -578,24 +578,24 @@ function changePage(direction) {
 
     // LOGIKA TAB PENJUALAN (FITUR BARU)
  async function fetchPenjualanData(isManual = false) {
-  const icon = document.getElementById('syncIconPenjualan');[cite: 1]
-  const body = document.getElementById('penjualanBody');[cite: 1]
-  icon.classList.add('animate-spin');[cite: 1]
-  body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">Sinkronisasi data...</td></tr>`;[cite: 1]
+  const icon = document.getElementById('syncIconPenjualan');
+  const body = document.getElementById('penjualanBody');
+  icon.classList.add('animate-spin');
+  body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">Sinkronisasi data...</td></tr>`;
 
   try {
-    const histRes = await fetch(SCRIPT_WEB_APP_URL + "?action=getHistory&cache=" + Date.now());[cite: 1]
-    const historyData = await histRes.json();[cite: 1]
+    const histRes = await fetch(SCRIPT_WEB_APP_URL + "?action=getHistory&cache=" + Date.now());
+    const historyData = await histRes.json();
     
-    storedItemsLog.clear();[cite: 1]
-    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });[cite: 1]
+    storedItemsLog.clear();
+    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });
 
-    const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());[cite: 1]
-    const salesCsv = await salesRes.text();[cite: 1]
-    const rows = parseCSV(salesCsv);[cite: 1]
+    const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());
+    const salesCsv = await salesRes.text();
+    const rows = parseCSV(salesCsv);
     
     // --- PROSES PEMBERSIHAN DATA (CLEANING) ---
-    const rawSales = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');[cite: 1]
+    const rawSales = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');
 
     window.lastSalesData = rawSales.map(row => {
       try {
@@ -614,25 +614,25 @@ function changePage(direction) {
       return items.length > 0;
     });
 
-    processedInvoices.clear();[cite: 1]
+    processedInvoices.clear();
     window.lastSalesData.forEach(row => {
-      const inv = row[0].trim();[cite: 1]
+      const inv = row[0].trim();
       try {
-        const items = JSON.parse(row[10]);[cite: 1]
-        // Karena sudah difilter di atas, kita cukup cek semua item yang tersisa[cite: 1]
+        const items = JSON.parse(row[10]);
+        // Karena sudah difilter di atas, kita cukup cek semua item yang tersisa
         if (items.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) {
-          processedInvoices.add(inv);[cite: 1]
+          processedInvoices.add(inv);
         }
       } catch(e) {}
     });
 
-    renderPenjualan(window.lastSalesData);[cite: 1]
-    dataLoaded.penjualan = true;[cite: 1]
+    renderPenjualan(window.lastSalesData);
+    dataLoaded.penjualan = true;
 
   } catch (err) {
-    showToast("Gagal mengambil data Spreadsheet", true);[cite: 1]
+    showToast("Gagal mengambil data Spreadsheet", true);
   } finally {
-    icon.classList.remove('animate-spin');[cite: 1]
+    icon.classList.remove('animate-spin');
   }
 }
 

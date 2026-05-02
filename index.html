@@ -915,18 +915,32 @@ async function submitStokKeluar() {
     });
 
     // --- PROSES BARU: VERIFIKASI KE ORDERFLOW (KOLOM M) ---
-    if (verifiedItemsText !== "") {
-      // Hilangkan koma terakhir
-      verifiedItemsText = verifiedItemsText.replace(/, $/, "");
-      
-      // Susun string gabungan sesuai format backend: "TRX-ID: ITEM1 (x1), ITEM2 (x2)"
-      const fullString = `${inv}: ${verifiedItemsText}`;
-      
-      // Kirim ke endpoint Apps Script dengan action 'verifyTRX'
-      const verifyUrl = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodeURIComponent(fullString)}`;
-      
-      await fetch(verifyUrl, { method: 'GET' }); // Menggunakan GET sesuai switch-case doGet
-    }
+  if (verifiedItemsText !== "") {
+  // 1. Hilangkan koma dan spasi terakhir agar data di Kolom M rapi
+  verifiedItemsText = verifiedItemsText.replace(/,\s*$/, "");
+  
+  // 2. Susun string gabungan sesuai format yang diminta backend
+  // Contoh hasil: "TRX-1777704879032: CG16 (x100), PLASTIK 17 (x1)"
+  const fullString = `${inv}: ${verifiedItemsText}`;
+  
+  // 3. Encode string agar karakter khusus seperti ':' dan ',' tidak rusak di URL
+  const encodedData = encodeURIComponent(fullString);
+  const verifyUrl = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodedData}`;
+  
+  console.log("Mengirim verifikasi ke OrderFlow...", fullString);
+
+  // 4. Kirim ke endpoint Apps Script menggunakan fetch
+  fetch(verifyUrl, { 
+    method: 'GET',
+    mode: 'no-cors' // Menghindari masalah CORS jika hanya mengirim data satu arah
+  })
+  .then(() => {
+    console.log("✅ Data verifikasi berhasil dikirim ke antrian.");
+  })
+  .catch(err => {
+    console.error("❌ Gagal mengirim verifikasi:", err);
+  });
+}
 
     // --- PROSES C: UPDATE UI ---
     hideToast(); 

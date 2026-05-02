@@ -577,7 +577,7 @@ function changePage(direction) {
 
 
     // LOGIKA TAB PENJUALAN (FITUR BARU)
-   async function fetchPenjualanData(isManual = false) {
+  async function fetchPenjualanData(isManual = false) {
   const icon = document.getElementById('syncIconPenjualan');
   const body = document.getElementById('penjualanBody');
   icon.classList.add('animate-spin');
@@ -601,14 +601,26 @@ function changePage(direction) {
       const inv = row[0].trim();
       try {
         const items = JSON.parse(row[10]);
-        if (items.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) processedInvoices.add(inv);
-      } catch(e) {}
+        
+        // Filter item yang wajib diproses (yang kategorinya BUKAN "TTH")
+        const itemsToProcess = items.filter(i => i.kategori !== "TTH");
+        
+        /**
+         * Logika Pemindahan Otomatis:
+         * 1. Jika setelah difilter tidak ada item yang tersisa (semua item adalah TTH).
+         * 2. ATAU jika semua item yang wajib diproses sudah ada di dalam log riwayat.
+         */
+        if (itemsToProcess.length === 0 || itemsToProcess.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) {
+          processedInvoices.add(inv);
+        }
+      } catch(e) {
+        console.error("Error parsing items for invoice: " + inv);
+      }
     });
 
     renderPenjualan(window.lastSalesData);
     dataLoaded.penjualan = true;
 
-   
   } catch (err) {
     showToast("Gagal mengambil data Spreadsheet", true);
   } finally {
@@ -646,8 +658,8 @@ function changePage(direction) {
         matchItem = false;
       }
       
-      return inv.includes(searchText) || matchItem;
-    });
+      return inv.includes(searchText) || pelanggan.includes(searchText) || matchItem;
+  });
   }
 
   // Jika data kosong setelah difilter, tampilkan pesan

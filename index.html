@@ -641,26 +641,25 @@ function changePage(direction) {
     filtered = data.filter(r => processedInvoices.has(r[0].trim()));
   }
 
-  // 2. Filter berdasarkan Pencarian (Invoice atau Nama Barang)
-  if (searchText) {
-    filtered = filtered.filter(row => {
-      const inv = row[0].toLowerCase();
-      const itemsJson = row[10] || "[]";
-      let matchItem = false;
-      
-      try {
-        const items = JSON.parse(itemsJson);
-        // Hanya cari di item yang kategorinya BUKAN "TTH"
-        matchItem = items
-          .filter(item => item.kategori !== "TTH") 
-          .some(item => item.nama.toLowerCase().includes(searchText));
-      } catch (e) {
-        matchItem = false;
-      }
-      
-      return inv.includes(searchText) || pelanggan.includes(searchText) || matchItem;
+
+ if (searchText) {
+  filtered = filtered.filter(row => {
+    const inv = row[0].toLowerCase();
+    const pelanggan = (row[8] || "").toLowerCase(); // Ambil data pelanggan (Kolom I)
+    const itemsJson = row[10] || "[]";
+    let matchItem = false;
+    
+    try {
+      const items = JSON.parse(itemsJson);
+      matchItem = items.some(item => item.nama.toLowerCase().includes(searchText));
+    } catch (e) {
+      matchItem = false;
+    }
+    
+    // Tambahkan variabel 'pelanggan' ke dalam return
+    return inv.includes(searchText) || pelanggan.includes(searchText) || matchItem;
   });
-  }
+}
 
   // Jika data kosong setelah difilter, tampilkan pesan
   if (filtered.length === 0) {

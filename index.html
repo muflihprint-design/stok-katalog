@@ -784,34 +784,34 @@ function renderItemBadges(inv, json) {
 
     // LOGIKA MODAL PENJUALAN
     function openModalWithTransaction(invoice, jsonStr) {
-  if (isSubmitting) return;[cite: 1]
+  if (isSubmitting) return;
   
-  // Ambil semua item dan saring kategori "TTH" agar tidak masuk ke daftar proses modal[cite: 1]
-  const allItems = JSON.parse(jsonStr);[cite: 1]
-  const filteredByCategory = allItems.filter(item => item.kategori !== "TTH");[cite: 1]
+  // Ambil semua item dan saring kategori "TTH" agar tidak masuk ke daftar proses modal
+  const allItems = JSON.parse(jsonStr);
+  const filteredByCategory = allItems.filter(item => item.kategori !== "TTH");
   
-  // Update currentSelectedTransaction hanya dengan item yang bukan "TTH"[cite: 1]
-  currentSelectedTransaction = { invoice, items: filteredByCategory };[cite: 1]
+  // Update currentSelectedTransaction hanya dengan item yang bukan "TTH"
+  currentSelectedTransaction = { invoice, items: filteredByCategory };
   
-  const list = document.getElementById('modalItemsList');[cite: 1]
-  document.getElementById('modalTransactionRef').innerText = invoice;[cite: 1]
-  list.innerHTML = '';[cite: 1]
+  const list = document.getElementById('modalItemsList');
+  document.getElementById('modalTransactionRef').innerText = invoice;
+  list.innerHTML = '';
 
-  // Filter item yang belum diproses (tidak ada dalam log riwayat)[cite: 1]
+  // Filter item yang belum diproses (tidak ada dalam log riwayat)
   const filtered = currentSelectedTransaction.items.filter(item => 
-    !storedItemsLog.has(`${invoice.trim()}|${item.nama.trim()}`)[cite: 1]
+    !storedItemsLog.has(`${invoice.trim()}|${item.nama.trim()}`)
   );
 
-  if (filtered.length === 0) {[cite: 1]
-    list.innerHTML = '<div class="text-center py-10 text-slate-400">Semua item sudah diproses atau kategori disembunyikan.</div>';[cite: 1]
-    document.getElementById('btnSubmitModal').classList.add('hidden');[cite: 1]
-  } else {[cite: 1]
-    document.getElementById('btnSubmitModal').classList.remove('hidden');[cite: 1]
-    filtered.forEach((item, index) => {[cite: 1]
-      const div = document.createElement('div');[cite: 1]
-      div.id = `item-card-${index}`;[cite: 1]
-      div.className = "item-card p-3 rounded-lg border status-none";[cite: 1]
-      div.dataset.status = "none";[cite: 1]
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="text-center py-10 text-slate-400">Semua item sudah diproses atau kategori disembunyikan.</div>';
+    document.getElementById('btnSubmitModal').classList.add('hidden');
+  } else {
+    document.getElementById('btnSubmitModal').classList.remove('hidden');
+    filtered.forEach((item, index) => {
+      const div = document.createElement('div');
+      div.id = `item-card-${index}`;
+      div.className = "item-card p-3 rounded-lg border status-none";
+      div.dataset.status = "none";
       div.innerHTML = `
         <div class="flex justify-between items-center mb-2">
           <span class="font-bold text-sm">${item.nama} (Qty: ${item.qty})</span>
@@ -821,13 +821,13 @@ function renderItemBadges(inv, json) {
           </div>
         </div>
         <input type="number" id="input-qty-${index}" value="${item.qty}" class="w-full p-2 border rounded text-sm">
-      `;[cite: 1]
-      list.appendChild(div);[cite: 1]
+      `;
+      list.appendChild(div);
     });
   }
 
-  document.getElementById('modalEdit').classList.remove('hidden');[cite: 1]
-  setTimeout(() => document.getElementById('modalContainer').classList.replace('opacity-0', 'opacity-100'), 10);[cite: 1]
+  document.getElementById('modalEdit').classList.remove('hidden');
+  setTimeout(() => document.getElementById('modalContainer').classList.replace('opacity-0', 'opacity-100'), 10);
 }
     
     function setItemStatus(idx, status) {

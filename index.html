@@ -235,7 +235,7 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVvdmVhbmV2c3Z5bnB0Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzUzODEsImV4cCI6MjA4OTg1MTM4MX0.eeIaytpW1wtWPJc2FbhufkDkhONUt9yypTZU4dTVmsM";
     const SHEET_SALES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=2057149863&single=true&output=csv";
     const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzEY6Pazj1Vur4LboaIdAgR8LRYJqQ8e4QQGiBElyQrYxxMMTdIZaUTkwCzbwtEiRJNjA/exec"; 
- const SCRIPT_WEB_APP_URL2 = "https://script.google.com/macros/s/AKfycbwohNnF1dGLj-w1HxGYwoO4jObtK0gDmm_LXwOGqSgxl5LvLCuahTxb4T_wMnoFJEng_w/exec"; 
+ const SCRIPT_WEB_APP_URL2 = "https://script.google.com/macros/s/AKfycbzsSmY5ouKuKEdWjvuRVtH0D_UZcIi1yXoS9Nu27hCPAyLYRevUj4MPbqsAgzySVncKRQ/exec"; 
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -913,33 +913,35 @@ async function submitStokKeluar() {
       mode: 'no-cors', 
       body: JSON.stringify(dataToShip) 
     });
+ 
+// --- PROSES VERIFIKASI KE ORDERFLOW (KOLOM M) ---
+if (verifiedItemsText !== "") {
+    // 1. Bersihkan koma terakhir
+    verifiedItemsText = verifiedItemsText.replace(/,\s*$/, "");
+    
+    // 2. Susun string gabungan sesuai format backend
+    const fullString = `${inv}: ${verifiedItemsText}`;
+    
+    // 3. Persiapkan UI/Tombol jika diperlukan (Optional)
+    console.log("Memulai Sinkronisasi OrderFlow:", fullString);
 
-    // --- PROSES BARU: VERIFIKASI KE ORDERFLOW (KOLOM M) ---
-  if (verifiedItemsText !== "") {
-  // 1. Hilangkan koma dan spasi terakhir agar data di Kolom M rapi
-  verifiedItemsText = verifiedItemsText.replace(/,\s*$/, "");
-  
-  // 2. Susun string gabungan sesuai format yang diminta backend
-  // Contoh hasil: "TRX-1777704879032: CG16 (x100), PLASTIK 17 (x1)"
-  const fullString = `${inv}: ${verifiedItemsText}`;
-  
-  // 3. Encode string agar karakter khusus seperti ':' dan ',' tidak rusak di URL
-  const encodedData = encodeURIComponent(fullString);
-  const verifyUrl = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodedData}`;
-  
-  console.log("Mengirim verifikasi ke OrderFlow...", fullString);
+    try {
+        // 4. Gunakan encodeURIComponent agar karakter ':' dan ',' aman
+        const url = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodeURIComponent(fullString)}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
 
-  // 4. Kirim ke endpoint Apps Script menggunakan fetch
-  fetch(verifyUrl, { 
-    method: 'GET',
-    mode: 'no-cors' // Menghindari masalah CORS jika hanya mengirim data satu arah
-  })
-  .then(() => {
-    console.log("✅ Data verifikasi berhasil dikirim ke antrian.");
-  })
-  .catch(err => {
-    console.error("❌ Gagal mengirim verifikasi:", err);
-  });
+        if (result.success) {
+            console.log("✅ Berhasil Sync OrderFlow:", result.message);
+            // Anda bisa menambahkan toast notification di sini jika perlu
+        } else {
+            console.warn("⚠️ OrderFlow Warning:", result.message);
+            // Contoh: "ID Transaksi tidak ditemukan di sheet"
+        }
+    } catch (err) {
+        console.error("❌ Koneksi Gagal ke OrderFlow:", err.message);
+    }
 }
 
     // --- PROSES C: UPDATE UI ---

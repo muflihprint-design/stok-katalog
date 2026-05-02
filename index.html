@@ -235,6 +235,7 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVvdmVhbmV2c3Z5bnB0Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNzUzODEsImV4cCI6MjA4OTg1MTM4MX0.eeIaytpW1wtWPJc2FbhufkDkhONUt9yypTZU4dTVmsM";
     const SHEET_SALES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=2057149863&single=true&output=csv";
     const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzEY6Pazj1Vur4LboaIdAgR8LRYJqQ8e4QQGiBElyQrYxxMMTdIZaUTkwCzbwtEiRJNjA/exec"; 
+ const SCRIPT_WEB_APP_URL2 = "https://script.google.com/macros/s/AKfycbzEY6Pazj1Vur4LboaIdAgR8LRYJqQ8e4QQGiBElyQrYxxMMTdIZaUTkwCzbwtEiRJNjA/exec"; 
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -835,10 +836,13 @@ async function submitStokKeluar() {
   if (isSubmitting) return;
 
   const cards = document.querySelectorAll('.item-card');
-  const dataToShip = []; // Data untuk Google Sheets
+  const dataToShip = []; // Data untuk Google Sheets Log
   const itemsForSupabase = []; // Data untuk Riwayat Supabase
   const inv = currentSelectedTransaction.invoice.trim();
   const timestampStr = new Date().toLocaleString('id-ID');
+
+  // Menampung item yang berstatus 'masuk' untuk dikirim ke Kolom M OrderFlow
+  let verifiedItemsText = ""; 
 
   cards.forEach((card, idx) => {
     const status = card.dataset.status;
@@ -847,10 +851,10 @@ async function submitStokKeluar() {
       const name = currentSelectedTransaction.items[idx].nama.trim();
       const statusLabel = status === 'masuk' ? "MASUK" : "ABAIKAN";
 
-      // 1. Siapkan data untuk Google Sheets
+      // 1. Siapkan data untuk Google Sheets Log
       dataToShip.push([timestampStr, inv, name, qty, statusLabel]);
 
-      // 2. Jika status "MASUK", siapkan data untuk Supabase
+      // 2. Jika status "MASUK", siapkan data untuk Supabase & String Verifikasi
       if (status === 'masuk') {
         itemsForSupabase.push({
           jenis: 'Barang Keluar', 
@@ -858,6 +862,9 @@ async function submitStokKeluar() {
           jumlah: qty,
           keterangan: `Penjualan: ${inv}`
         });
+
+        // Format string untuk OrderFlow: "NAMA (xQTY)"
+        verifiedItemsText += `${name} (x${qty}), `;
       }
     }
   });
@@ -865,21 +872,18 @@ async function submitStokKeluar() {
   if (dataToShip.length === 0) return showToast("Pilih status item!", true);
   closeModal();
   isSubmitting = true;
-   showToast("Memproses data...");
+  showToast("Memproses data...");
 
   try {
     // --- PROSES A: INSERT KE SUPABASE & POTONG STOK ---
     if (itemsForSupabase.length > 0) {
-      // Masukkan ke tabel Riwayat
       const { error: errorRiwayat } = await _supabase
         .from('riwayat')
         .insert(itemsForSupabase);
 
       if (errorRiwayat) throw new Error("Gagal simpan riwayat Supabase");
 
-      // Update stok sisa di tabel Stok (looping per item)
       for (const item of itemsForSupabase) {
-        // Ambil stok saat ini
         const { data: currentData } = await _supabase
           .from('stok')
           .select('sisa')
@@ -887,14 +891,12 @@ async function submitStokKeluar() {
           .maybeSingle();
 
         if (currentData) {
-          // Jika barang sudah ada, kurangi sisa stoknya
           const sisaBaru = currentData.sisa - item.jumlah;
           await _supabase
             .from('stok')
             .update({ sisa: sisaBaru })
             .eq('nama', item.nama_barang);
         } else {
-          // JIKA STOK BELUM ADA: Tambahkan baris produk baru dengan nilai negatif
           await _supabase
             .from('stok')
             .insert([{ 
@@ -905,27 +907,38 @@ async function submitStokKeluar() {
       }
     }
 
-    // --- PROSES B: KIRIM KE GOOGLE SHEETS ---
+    // --- PROSES B: KIRIM LOG KE GOOGLE SHEETS (LOG BARANG KELUAR) ---
     await fetch(SCRIPT_WEB_APP_URL, { 
       method: 'POST', 
       mode: 'no-cors', 
       body: JSON.stringify(dataToShip) 
     });
 
-    // --- PROSES C: UPDATE UI (Tanpa Notifikasi Sukses) ---
-    hideToast(); // Sembunyikan toast "Memproses..."
+    // --- PROSES BARU: VERIFIKASI KE ORDERFLOW (KOLOM M) ---
+    if (verifiedItemsText !== "") {
+      // Hilangkan koma terakhir
+      verifiedItemsText = verifiedItemsText.replace(/, $/, "");
+      
+      // Susun string gabungan sesuai format backend: "TRX-ID: ITEM1 (x1), ITEM2 (x2)"
+      const fullString = `${inv}: ${verifiedItemsText}`;
+      
+      // Kirim ke endpoint Apps Script dengan action 'verifyTRX'
+      const verifyUrl = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodeURIComponent(fullString)}`;
+      
+      await fetch(verifyUrl, { method: 'GET' }); // Menggunakan GET sesuai switch-case doGet
+    }
 
-    // Tandai secara lokal agar UI Penjualan terupdate
+    // --- PROSES C: UPDATE UI ---
+    hideToast(); 
+
     itemsForSupabase.forEach(item => {
       storedItemsLog.add(`${inv}|${item.nama_barang}`);
     });
     
-    // Reset flags agar data di tab lain di-refresh saat dibuka
     dataLoaded.riwayat = false;
     dataLoaded.stok = false;
     
-   
-    fetchPenjualanData(); // Refresh tabel penjualan secara silent
+    fetchPenjualanData(); 
 
   } catch (e) {
     console.error(e);

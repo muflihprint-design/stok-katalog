@@ -577,57 +577,66 @@ function changePage(direction) {
 
 
     // LOGIKA TAB PENJUALAN (FITUR BARU)
-  async function fetchPenjualanData(isManual = false) {
-  const icon = document.getElementById('syncIconPenjualan');
-  const body = document.getElementById('penjualanBody');
-  icon.classList.add('animate-spin');
-  body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">Sinkronisasi data...</td></tr>`;
+ async function fetchPenjualanData(isManual = false) {
+  const icon = document.getElementById('syncIconPenjualan');[cite: 1]
+  const body = document.getElementById('penjualanBody');[cite: 1]
+  icon.classList.add('animate-spin');[cite: 1]
+  body.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">Sinkronisasi data...</td></tr>`;[cite: 1]
 
   try {
-    const histRes = await fetch(SCRIPT_WEB_APP_URL + "?action=getHistory&cache=" + Date.now());
-    const historyData = await histRes.json();
+    const histRes = await fetch(SCRIPT_WEB_APP_URL + "?action=getHistory&cache=" + Date.now());[cite: 1]
+    const historyData = await histRes.json();[cite: 1]
     
-    storedItemsLog.clear();
-    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });
+    storedItemsLog.clear();[cite: 1]
+    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });[cite: 1]
 
-    const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());
-    const salesCsv = await salesRes.text();
-    const rows = parseCSV(salesCsv);
+    const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());[cite: 1]
+    const salesCsv = await salesRes.text();[cite: 1]
+    const rows = parseCSV(salesCsv);[cite: 1]
     
-    window.lastSalesData = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');
-    
-    processedInvoices.clear();
-    window.lastSalesData.forEach(row => {
-      const inv = row[0].trim();
+    // --- PROSES PEMBERSIHAN DATA (CLEANING) ---
+    const rawSales = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');[cite: 1]
+
+    window.lastSalesData = rawSales.map(row => {
       try {
-        const items = JSON.parse(row[10]);
+        let items = JSON.parse(row[10]);
+        // HANYA ambil item yang kategorinya BUKAN "TTH"
+        let filteredItems = items.filter(i => i.kategori !== "TTH");
         
-        // Filter item yang wajib diproses (yang kategorinya BUKAN "TTH")
-        const itemsToProcess = items.filter(i => i.kategori !== "TTH");
-        
-        /**
-         * Logika Pemindahan Otomatis:
-         * 1. Jika setelah difilter tidak ada item yang tersisa (semua item adalah TTH).
-         * 2. ATAU jika semua item yang wajib diproses sudah ada di dalam log riwayat.
-         */
-        if (itemsToProcess.length === 0 || itemsToProcess.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) {
-          processedInvoices.add(inv);
-        }
-      } catch(e) {
-        console.error("Error parsing items for invoice: " + inv);
-      }
+        // Kembalikan baris dengan kolom JSON (index 10) yang sudah bersih
+        let newRow = [...row];
+        newRow[10] = JSON.stringify(filteredItems);
+        return newRow;
+      } catch(e) { return row; }
+    }).filter(row => {
+      // Buang transaksi yang setelah difilter itemnya jadi kosong (karena isinya TTH semua)
+      const items = JSON.parse(row[10]);
+      return items.length > 0;
     });
 
-    renderPenjualan(window.lastSalesData);
-    dataLoaded.penjualan = true;
+    processedInvoices.clear();[cite: 1]
+    window.lastSalesData.forEach(row => {
+      const inv = row[0].trim();[cite: 1]
+      try {
+        const items = JSON.parse(row[10]);[cite: 1]
+        // Karena sudah difilter di atas, kita cukup cek semua item yang tersisa[cite: 1]
+        if (items.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) {
+          processedInvoices.add(inv);[cite: 1]
+        }
+      } catch(e) {}
+    });
+
+    renderPenjualan(window.lastSalesData);[cite: 1]
+    dataLoaded.penjualan = true;[cite: 1]
 
   } catch (err) {
-    showToast("Gagal mengambil data Spreadsheet", true);
+    showToast("Gagal mengambil data Spreadsheet", true);[cite: 1]
   } finally {
-    icon.classList.remove('animate-spin');
+    icon.classList.remove('animate-spin');[cite: 1]
   }
 }
 
+    
  function renderPenjualan(data) {
   const body = document.getElementById('penjualanBody');
   const searchInput = document.getElementById('searchPenjualan');

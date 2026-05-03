@@ -34,6 +34,18 @@
     .filter-chip.active { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
     .filter-chip.inactive { background: #f1f5f9; color: #64748b; }
 
+    /* Menghilangkan tombol naik-turun di Chrome, Safari, Edge, dan Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Menghilangkan tombol naik-turun di Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+    
     #catalogOverlay {
       position: fixed; inset: 0; background: #f8fafc; z-index: 1000;
       display: flex; flex-direction: column; transform: translateY(100%);
@@ -519,7 +531,7 @@ document.getElementById('stokForm').onsubmit = async function(e) {
       const qtyInput = row.querySelector('[name="jumlahBarang"]').value;
       
       // PERUBAHAN DISINI: Mengubah koma ke titik dan menggunakan parseFloat
-      const qty = parseFloat(qtyInput.toString().replace(',', '.'));[cite: 1]
+      const qty = parseFloat(qtyInput.toString().replace(',', '.'));
 
       if (!nama || isNaN(qty)) continue; // Lewati jika nama kosong atau qty bukan angka
       
@@ -533,9 +545,9 @@ document.getElementById('stokForm').onsubmit = async function(e) {
       if (fetchError) throw fetchError;
 
       // 2. Kalkulasi perubahan stok (mendukung desimal)
-      const change = (jenis === 'Barang Masuk') ? qty : -qty;[cite: 1]
-      const currentSisa = cur ? parseFloat(cur.sisa) : 0;[cite: 1]
-      const newSisa = currentSisa + change;[cite: 1]
+      const change = (jenis === 'Barang Masuk') ? qty : -qty;
+      const currentSisa = cur ? parseFloat(cur.sisa) : 0;
+      const newSisa = currentSisa + change;
 
       // 3. Update atau Insert ke tabel 'stok'
       if (cur) {
@@ -923,8 +935,8 @@ async function submitStokKeluar() {
     const status = card.dataset.status;
     if (status !== 'none') {
       // PERUBAHAN DISINI: Ambil nilai sebagai string, ganti koma ke titik, lalu parseFloat
-      const qtyRaw = document.getElementById(`input-qty-${idx}`).value;[cite: 1]
-      const qty = parseFloat(qtyRaw.toString().replace(',', '.')) || 0;[cite: 1]
+      const qtyRaw = document.getElementById(`input-qty-${idx}`).value;
+      const qty = parseFloat(qtyRaw.toString().replace(',', '.')) || 0;
       
       const name = currentSelectedTransaction.items[idx].nama.trim();
       const statusLabel = status === 'masuk' ? "MASUK" : "ABAIKAN";
@@ -970,8 +982,8 @@ async function submitStokKeluar() {
 
         if (currentData) {
           // PERUBAHAN DISINI: Pastikan sisa stok lama juga di-parse sebagai float sebelum dikurangi
-          const sisaLama = parseFloat(currentData.sisa) || 0;[cite: 1]
-          const sisaBaru = sisaLama - item.jumlah;[cite: 1]
+          const sisaLama = parseFloat(currentData.sisa) || 0;
+          const sisaBaru = sisaLama - item.jumlah;
           
           await _supabase
             .from('stok')

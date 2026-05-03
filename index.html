@@ -588,7 +588,7 @@ function changePage(direction) {
 
 
     // LOGIKA TAB PENJUALAN (FITUR BARU)
- async function fetchPenjualanData(isManual = false) {
+async function fetchPenjualanData(isManual = false) {
   const icon = document.getElementById('syncIconPenjualan');
   const body = document.getElementById('penjualanBody');
   icon.classList.add('animate-spin');
@@ -599,30 +599,48 @@ function changePage(direction) {
     const historyData = await histRes.json();
     
     storedItemsLog.clear();
-    historyData.forEach(row => { if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); });
+    historyData.forEach(row => { 
+      if (row[1] && row[2]) storedItemsLog.add(`${row[1].trim()}|${row[2].trim()}`); 
+    });
 
     const salesRes = await fetch(SHEET_SALES_URL + "&cache=" + Date.now());
     const salesCsv = await salesRes.text();
     const rows = parseCSV(salesCsv);
     
-    // --- PROSES PEMBERSIHAN DATA (CLEANING) ---
+    // --- PROSES PEMBERSIHAN & PENGGABUNGAN DATA ---
     const rawSales = rows.slice(1).filter(row => row[3] && row[3].trim().toLowerCase() === 'penjualan');
 
     window.lastSalesData = rawSales.map(row => {
       try {
         let items = JSON.parse(row[10]);
-        // HANYA ambil item yang kategorinya BUKAN "TTH"
+        
+        // 1. Filter: Hanya ambil item yang kategorinya BUKAN "TTH"
         let filteredItems = items.filter(i => i.kategori !== "TTH");
         
-        // Kembalikan baris dengan kolom JSON (index 10) yang sudah bersih
+        // 2. Gabung: Jika nama item sama, jumlahkan QTY nya
+        let mergedItems = filteredItems.reduce((acc, current) => {
+          let existing = acc.find(item => item.nama.trim() === current.nama.trim());
+          if (existing) {
+            existing.qty = (parseInt(existing.qty) || 0) + (parseInt(current.qty) || 0);
+          } else {
+            acc.push({ ...current });
+          }
+          return acc;
+        }, []);
+        
+        // Kembalikan baris dengan data item yang sudah digabung
         let newRow = [...row];
-        newRow[10] = JSON.stringify(filteredItems);
+        newRow[10] = JSON.stringify(mergedItems);
         return newRow;
-      } catch(e) { return row; }
+      } catch(e) { 
+        return row; 
+      }
     }).filter(row => {
-      // Buang transaksi yang setelah difilter itemnya jadi kosong (karena isinya TTH semua)
-      const items = JSON.parse(row[10]);
-      return items.length > 0;
+      // Buang transaksi jika setelah difilter itemnya kosong
+      try {
+        const items = JSON.parse(row[10]);
+        return items.length > 0;
+      } catch(e) { return false; }
     });
 
     processedInvoices.clear();
@@ -630,7 +648,6 @@ function changePage(direction) {
       const inv = row[0].trim();
       try {
         const items = JSON.parse(row[10]);
-        // Karena sudah difilter di atas, kita cukup cek semua item yang tersisa
         if (items.every(i => storedItemsLog.has(`${inv}|${i.nama.trim()}`))) {
           processedInvoices.add(inv);
         }
@@ -641,12 +658,12 @@ function changePage(direction) {
     dataLoaded.penjualan = true;
 
   } catch (err) {
+    console.error(err);
     showToast("Gagal mengambil data Spreadsheet", true);
   } finally {
     icon.classList.remove('animate-spin');
   }
 }
-
     
  function renderPenjualan(data) {
   const body = document.getElementById('penjualanBody');
@@ -1200,93 +1217,95 @@ function renderStok(data) {
       });
     }
 
-    async function exportPendingToPDF() {
+  async function exportPendingToPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   
+  // Ambil data yang berstatus pending
   const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));
   if (pendingData.length === 0) return showToast("Tidak ada transaksi pending", true);
 
-  // --- LOGIKA PENGELOMPOKKAN BERDASARKAN ITEM ---
-  const itemMap = {};
-  pendingData.forEach(row => {
-    const inv = row[0].trim();
-    const pelanggan = row[8] || "-";
-    try {
-      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
-      items.forEach(i => {
-        if (!itemMap[i.nama]) itemMap[i.nama] = [];
-        itemMap[i.nama].push({ inv, pelanggan, qty: i.qty });
-      });
-    } catch(e) {}
+  // Urutkan data berdasarkan Nama Pelanggan secara alfabetis
+  const sortedData = [...pendingData].sort((a, b) => {
+    const nameA = (a[8] || "").toUpperCase();
+    const nameB = (b[8] || "").toUpperCase();
+    return nameA.localeCompare(nameB);
   });
 
-  // Urutkan nama item secara alfabetis
-  const sortedItems = Object.keys(itemMap).sort();
-
   doc.setFontSize(14);
-  doc.text("LAPORAN KEBUTUHAN ITEM (PENDING VERIFIKASI)", 14, 15);
+  doc.text("DAFTAR TRANSAKSI BELUM VERIFIKASI", 14, 15);
   doc.setFontSize(9);
   doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 14, 20);
 
   const tableRows = [];
-  sortedItems.forEach((itemName) => {
-    // Baris Judul Item (Span 3 kolom)
-    tableRows.push([{ content: itemName, colSpan: 3, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' } }]);
+  sortedData.forEach((row) => {
+    const inv = row[0].trim();
+    const pelanggan = (row[8] || "TANPA NAMA").trim().toUpperCase();
     
-    // Detail Transaksi untuk item tersebut
-    itemMap[itemName].forEach(detail => {
-      tableRows.push([
-        `   ${detail.inv}`,
-        detail.pelanggan,
-        detail.qty
-      ]);
-    });
+    // Header per Transaksi
+    tableRows.push([{ 
+      content: `PELANGGAN: ${pelanggan} | NO. TRX: ${inv}`, 
+      colSpan: 2, 
+      styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [30, 41, 59] } 
+    }]);
+    
+    try {
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");[cite: 1]
+      items.forEach(item => {
+        tableRows.push([
+          item.nama,
+          item.qty
+        ]);
+      });
+    } catch(e) {
+      tableRows.push([{ content: "Gagal memuat item", colSpan: 2 }]);
+    }
   });
 
   doc.autoTable({
     startY: 25,
-    head: [['No. Transaksi', 'Pelanggan', 'Jumlah']],
+    head: [['Nama Item', 'Jumlah']],
     body: tableRows,
     theme: 'grid',
-    headStyles: { fillColor: [79, 70, 229] },
+    headStyles: { fillColor: [79, 70, 229] }, // Indigo
     styles: { fontSize: 8 },
-    columnStyles: { 2: { halign: 'center', cellWidth: 20 } }
+    columnStyles: { 1: { halign: 'center', cellWidth: 30 } }
   });
 
-  doc.save(`Rekap_Item_Pending_${Date.now()}.pdf`);
+  doc.save(`Transaksi_Pending_${Date.now()}.pdf`);
   showToast("PDF Berhasil diunduh!");
 }
-
-    function copyPendingToClipboard() {
-  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));
+    
+   function copyPendingToClipboard() {
+  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));[cite: 1]
   if (pendingData.length === 0) return showToast("Tidak ada transaksi pending", true);
 
-  const itemMap = {};
-  pendingData.forEach(row => {
-    const inv = row[0].trim();
-    const pelanggan = row[8] || "-";
-    try {
-      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
-      items.forEach(i => {
-        if (!itemMap[i.nama]) itemMap[i.nama] = [];
-        itemMap[i.nama].push({ inv, pelanggan, qty: i.qty });
-      });
-    } catch(e) {}
+  // Urutkan data berdasarkan Nama Pelanggan secara alfabetis
+  const sortedData = [...pendingData].sort((a, b) => {
+    const nameA = (a[8] || "").toUpperCase();
+    const nameB = (b[8] || "").toUpperCase();
+    return nameA.localeCompare(nameB);
   });
 
-  const sortedItems = Object.keys(itemMap).sort();
-  let textToCopy = "*REKAP KEBUTUHAN BARANG (BELUM VERIFIKASI)*\n";
+  let textToCopy = "*DAFTAR TRANSAKSI BELUM VERIFIKASI*\n";
   textToCopy += "------------------------------------------\n\n";
 
-  sortedItems.forEach(itemName => {
-    const totalQty = itemMap[itemName].reduce((sum, d) => sum + parseInt(d.qty), 0);
-    textToCopy += `📦 *${itemName}* (Total: ${totalQty})\n`;
+  sortedData.forEach(row => {
+    const inv = row[0].trim();
+    const pelanggan = (row[8] || "TANPA NAMA").trim().toUpperCase();
     
-    itemMap[itemName].forEach(d => {
-      textToCopy += `   • ${d.inv} | ${d.pelanggan} (Qty: ${d.qty})\n`;
-    });
-    textToCopy += "\n";
+    textToCopy += `👤 *${pelanggan}*\n`;
+    textToCopy += `📄 No. Transaksi: ${inv}\n`;
+    
+    try {
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");[cite: 1]
+      items.forEach(i => {
+        textToCopy += `   • ${i.nama} (Qty: ${i.qty})\n`;
+      });
+    } catch(e) {
+      textToCopy += `   (Gagal memuat item)\n`;
+    }
+    textToCopy += "----------------------------\n";
   });
 
   navigator.clipboard.writeText(textToCopy).then(() => {

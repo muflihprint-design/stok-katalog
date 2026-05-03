@@ -495,7 +495,7 @@ function changePage(direction) {
 
     
 
-  document.getElementById('stokForm').onsubmit = async function(e) {
+document.getElementById('stokForm').onsubmit = async function(e) {
   e.preventDefault();
   
   // Ambil data input
@@ -517,9 +517,11 @@ function changePage(direction) {
     for (let row of rows) {
       const nama = row.querySelector('[name="namaBarang"]').value.toUpperCase();
       const qtyInput = row.querySelector('[name="jumlahBarang"]').value;
-      const qty = parseInt(qtyInput);
+      
+      // PERUBAHAN DISINI: Mengubah koma ke titik dan menggunakan parseFloat
+      const qty = parseFloat(qtyInput.toString().replace(',', '.'));[cite: 1]
 
-      if (!nama || isNaN(qty)) continue; // Lewati jika ada baris kosong
+      if (!nama || isNaN(qty)) continue; // Lewati jika nama kosong atau qty bukan angka
       
       // 1. Ambil data stok saat ini dari Supabase
       const { data: cur, error: fetchError } = await _supabase
@@ -530,9 +532,10 @@ function changePage(direction) {
 
       if (fetchError) throw fetchError;
 
-      // 2. Kalkulasi perubahan stok
-      const change = (jenis === 'Barang Masuk') ? qty : -qty;
-      const newSisa = (cur ? cur.sisa : 0) + change;
+      // 2. Kalkulasi perubahan stok (mendukung desimal)
+      const change = (jenis === 'Barang Masuk') ? qty : -qty;[cite: 1]
+      const currentSisa = cur ? parseFloat(cur.sisa) : 0;[cite: 1]
+      const newSisa = currentSisa + change;[cite: 1]
 
       // 3. Update atau Insert ke tabel 'stok'
       if (cur) {
@@ -584,8 +587,6 @@ function changePage(direction) {
     setProcessingState(false);
   }
 };
-
-
 
     // LOGIKA TAB PENJUALAN (FITUR BARU)
 async function fetchPenjualanData(isManual = false) {
@@ -921,7 +922,10 @@ async function submitStokKeluar() {
   cards.forEach((card, idx) => {
     const status = card.dataset.status;
     if (status !== 'none') {
-      const qty = parseInt(document.getElementById(`input-qty-${idx}`).value) || 0;
+      // PERUBAHAN DISINI: Ambil nilai sebagai string, ganti koma ke titik, lalu parseFloat
+      const qtyRaw = document.getElementById(`input-qty-${idx}`).value;[cite: 1]
+      const qty = parseFloat(qtyRaw.toString().replace(',', '.')) || 0;[cite: 1]
+      
       const name = currentSelectedTransaction.items[idx].nama.trim();
       const statusLabel = status === 'masuk' ? "MASUK" : "ABAIKAN";
 
@@ -965,7 +969,10 @@ async function submitStokKeluar() {
           .maybeSingle();
 
         if (currentData) {
-          const sisaBaru = currentData.sisa - item.jumlah;
+          // PERUBAHAN DISINI: Pastikan sisa stok lama juga di-parse sebagai float sebelum dikurangi
+          const sisaLama = parseFloat(currentData.sisa) || 0;[cite: 1]
+          const sisaBaru = sisaLama - item.jumlah;[cite: 1]
+          
           await _supabase
             .from('stok')
             .update({ sisa: sisaBaru })
@@ -981,53 +988,42 @@ async function submitStokKeluar() {
       }
     }
 
-    // --- PROSES B: KIRIM LOG KE GOOGLE SHEETS (LOG BARANG KELUAR) ---
+    // --- PROSES B: KIRIM LOG KE GOOGLE SHEETS ---
     await fetch(SCRIPT_WEB_APP_URL, { 
       method: 'POST', 
       mode: 'no-cors', 
       body: JSON.stringify(dataToShip) 
     });
  
-// --- PROSES VERIFIKASI KE ORDERFLOW (KOLOM M) ---
-if (verifiedItemsText !== "") {
-    // 1. Bersihkan koma terakhir
-    verifiedItemsText = verifiedItemsText.replace(/,\s*$/, "");
-    
-    // 2. Susun string gabungan sesuai format backend
-    const fullString = `${inv}: ${verifiedItemsText}`;
-    
-    // 3. Persiapkan UI/Tombol jika diperlukan (Optional)
-    console.log("Memulai Sinkronisasi OrderFlow:", fullString);
+    // --- PROSES VERIFIKASI KE ORDERFLOW (KOLOM M) ---
+    if (verifiedItemsText !== "") {
+        verifiedItemsText = verifiedItemsText.replace(/,\s*$/, "");
+        const fullString = `${inv}: ${verifiedItemsText}`;
+        console.log("Memulai Sinkronisasi OrderFlow:", fullString);
 
-    try {
-        // 4. Gunakan encodeURIComponent agar karakter ':' dan ',' aman
-        const url = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodeURIComponent(fullString)}`;
-        
-        const response = await fetch(url);
-        const result = await response.json();
+        try {
+            const url = `${SCRIPT_WEB_APP_URL2}?action=verifyTRX&fullString=${encodeURIComponent(fullString)}`;
+            const response = await fetch(url);
+            const result = await response.json();
 
-        if (result.success) {
-            console.log("✅ Berhasil Sync OrderFlow:", result.message);
-            // Anda bisa menambahkan toast notification di sini jika perlu
-        } else {
-            console.warn("⚠️ OrderFlow Warning:", result.message);
-            // Contoh: "ID Transaksi tidak ditemukan di sheet"
+            if (result.success) {
+                console.log("✅ Berhasil Sync OrderFlow:", result.message);
+            } else {
+                console.warn("⚠️ OrderFlow Warning:", result.message);
+            }
+        } catch (err) {
+            console.error("❌ Koneksi Gagal ke OrderFlow:", err.message);
         }
-    } catch (err) {
-        console.error("❌ Koneksi Gagal ke OrderFlow:", err.message);
     }
-}
 
     // --- PROSES C: UPDATE UI ---
     hideToast(); 
-
     itemsForSupabase.forEach(item => {
       storedItemsLog.add(`${inv}|${item.nama_barang}`);
     });
     
     dataLoaded.riwayat = false;
     dataLoaded.stok = false;
-    
     fetchPenjualanData(); 
 
   } catch (e) {
@@ -1037,7 +1033,6 @@ if (verifiedItemsText !== "") {
     isSubmitting = false;
   }
 }
-    
     // LOGIKA TAB RIWAYAT & STOK (SUPABASE)
     async function loadRiwayat() {
   const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });

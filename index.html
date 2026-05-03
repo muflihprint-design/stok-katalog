@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
   <style>
     body { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); min-height: 100vh; font-family: sans-serif; }
     .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 1rem; }
@@ -99,6 +101,15 @@
       <i id="syncIconPenjualan" class="fas fa-sync-alt"></i>
     </button>
   </div>
+</div>
+
+        <div class="flex gap-2 mb-3">
+  <button onclick="exportPendingToPDF()" class="flex-1 bg-red-500 text-white py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition">
+    <i class="fas fa-file-pdf"></i> EXPORT PDF (PENDING)
+  </button>
+  <button onclick="copyPendingToClipboard()" class="flex-1 bg-slate-700 text-white py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition">
+    <i class="fas fa-copy"></i> SALIN TEKS (PENDING)
+  </button>
 </div>
 
         <input type="text" id="searchPenjualan" onkeyup="renderPenjualan(window.lastSalesData)" 
@@ -1188,6 +1199,100 @@ function renderStok(data) {
         res.push(cur); return res;
       });
     }
+
+    async function exportPendingToPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));
+  if (pendingData.length === 0) return showToast("Tidak ada transaksi pending", true);
+
+  // --- LOGIKA PENGELOMPOKKAN BERDASARKAN ITEM ---
+  const itemMap = {};
+  pendingData.forEach(row => {
+    const inv = row[0].trim();
+    const pelanggan = row[8] || "-";
+    try {
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
+      items.forEach(i => {
+        if (!itemMap[i.nama]) itemMap[i.nama] = [];
+        itemMap[i.nama].push({ inv, pelanggan, qty: i.qty });
+      });
+    } catch(e) {}
+  });
+
+  // Urutkan nama item secara alfabetis
+  const sortedItems = Object.keys(itemMap).sort();
+
+  doc.setFontSize(14);
+  doc.text("LAPORAN KEBUTUHAN ITEM (PENDING VERIFIKASI)", 14, 15);
+  doc.setFontSize(9);
+  doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 14, 20);
+
+  const tableRows = [];
+  sortedItems.forEach((itemName) => {
+    // Baris Judul Item (Span 3 kolom)
+    tableRows.push([{ content: itemName, colSpan: 3, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' } }]);
+    
+    // Detail Transaksi untuk item tersebut
+    itemMap[itemName].forEach(detail => {
+      tableRows.push([
+        `   ${detail.inv}`,
+        detail.pelanggan,
+        detail.qty
+      ]);
+    });
+  });
+
+  doc.autoTable({
+    startY: 25,
+    head: [['No. Transaksi', 'Pelanggan', 'Jumlah']],
+    body: tableRows,
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229] },
+    styles: { fontSize: 8 },
+    columnStyles: { 2: { halign: 'center', cellWidth: 20 } }
+  });
+
+  doc.save(`Rekap_Item_Pending_${Date.now()}.pdf`);
+  showToast("PDF Berhasil diunduh!");
+}
+
+    function copyPendingToClipboard() {
+  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));
+  if (pendingData.length === 0) return showToast("Tidak ada transaksi pending", true);
+
+  const itemMap = {};
+  pendingData.forEach(row => {
+    const inv = row[0].trim();
+    const pelanggan = row[8] || "-";
+    try {
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
+      items.forEach(i => {
+        if (!itemMap[i.nama]) itemMap[i.nama] = [];
+        itemMap[i.nama].push({ inv, pelanggan, qty: i.qty });
+      });
+    } catch(e) {}
+  });
+
+  const sortedItems = Object.keys(itemMap).sort();
+  let textToCopy = "*REKAP KEBUTUHAN BARANG (BELUM VERIFIKASI)*\n";
+  textToCopy += "------------------------------------------\n\n";
+
+  sortedItems.forEach(itemName => {
+    const totalQty = itemMap[itemName].reduce((sum, d) => sum + parseInt(d.qty), 0);
+    textToCopy += `📦 *${itemName}* (Total: ${totalQty})\n`;
+    
+    itemMap[itemName].forEach(d => {
+      textToCopy += `   • ${d.inv} | ${d.pelanggan} (Qty: ${d.qty})\n`;
+    });
+    textToCopy += "\n";
+  });
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    showToast("Teks berhasil disalin!");
+  });
+}
 
      function initRealtime() {
   _supabase.channel('db-changes')

@@ -855,21 +855,18 @@ function renderItemBadges(inv, json) {
     }
 
     // LOGIKA MODAL PENJUALAN
-    function openModalWithTransaction(invoice, jsonStr) {
+function openModalWithTransaction(invoice, jsonStr) {
   if (isSubmitting) return;
   
-  // Ambil semua item dan saring kategori "TTH" agar tidak masuk ke daftar proses modal
   const allItems = JSON.parse(jsonStr);
   const filteredByCategory = allItems.filter(item => item.kategori !== "TTH");
   
-  // Update currentSelectedTransaction hanya dengan item yang bukan "TTH"
   currentSelectedTransaction = { invoice, items: filteredByCategory };
   
   const list = document.getElementById('modalItemsList');
   document.getElementById('modalTransactionRef').innerText = invoice;
   list.innerHTML = '';
 
-  // Filter item yang belum diproses (tidak ada dalam log riwayat)
   const filtered = currentSelectedTransaction.items.filter(item => 
     !storedItemsLog.has(`${invoice.trim()}|${item.nama.trim()}`)
   );
@@ -884,6 +881,8 @@ function renderItemBadges(inv, json) {
       div.id = `item-card-${index}`;
       div.className = "item-card p-3 rounded-lg border status-none";
       div.dataset.status = "none";
+      // KUNCI NAMA BARANG DI SINI
+      div.dataset.namaBarang = item.nama; 
       div.innerHTML = `
         <div class="flex justify-between items-center mb-2">
           <span class="font-bold text-sm">${item.nama} (Qty: ${item.qty})</span>
@@ -901,19 +900,19 @@ function renderItemBadges(inv, json) {
   document.getElementById('modalEdit').classList.remove('hidden');
   setTimeout(() => document.getElementById('modalContainer').classList.replace('opacity-0', 'opacity-100'), 10);
 }
-    
-    function setItemStatus(idx, status) {
-      const card = document.getElementById(`item-card-${idx}`);
-      const btnM = document.getElementById(`btn-m-${idx}`);
-      const btnA = document.getElementById(`btn-a-${idx}`);
-      
-      card.classList.remove('status-masuk', 'status-abaikan', 'status-none');
-      card.classList.add('status-' + status);
-      card.dataset.status = status;
 
-      btnM.className = status === 'masuk' ? "btn-status bg-emerald-500 text-white" : "btn-status bg-slate-100 text-slate-400";
-      btnA.className = status === 'abaikan' ? "btn-status bg-red-500 text-white" : "btn-status bg-slate-100 text-slate-400";
-    }
+function setItemStatus(idx, status) {
+  const card = document.getElementById(`item-card-${idx}`);
+  const btnM = document.getElementById(`btn-m-${idx}`);
+  const btnA = document.getElementById(`btn-a-${idx}`);
+  
+  card.classList.remove('status-masuk', 'status-abaikan', 'status-none');
+  card.classList.add('status-' + status);
+  card.dataset.status = status;
+
+  btnM.className = status === 'masuk' ? "btn-status bg-emerald-500 text-white" : "btn-status bg-slate-100 text-slate-400";
+  btnA.className = status === 'abaikan' ? "btn-status bg-red-500 text-white" : "btn-status bg-slate-100 text-slate-400";
+}
 
     function closeModal() {
       document.getElementById('modalEdit').classList.add('hidden');
@@ -934,11 +933,12 @@ async function submitStokKeluar() {
   cards.forEach((card, idx) => {
     const status = card.dataset.status;
     if (status !== 'none') {
-      // PERUBAHAN DISINI: Ambil nilai sebagai string, ganti koma ke titik, lalu parseFloat
+      // Mengambil nilai qty dari input di dalam card yang sedang diproses
       const qtyRaw = document.getElementById(`input-qty-${idx}`).value;
       const qty = parseFloat(qtyRaw.toString().replace(',', '.')) || 0;
       
-      const name = currentSelectedTransaction.items[idx].nama.trim();
+      // PERBAIKAN UTAMA: Ambil nama dari dataset card, bukan dari index array items[cite: 1]
+      const name = card.dataset.namaBarang.trim(); 
       const statusLabel = status === 'masuk' ? "MASUK" : "ABAIKAN";
 
       // 1. Siapkan data untuk Google Sheets Log
@@ -960,6 +960,7 @@ async function submitStokKeluar() {
   });
 
   if (dataToShip.length === 0) return showToast("Pilih status item!", true);
+  
   closeModal();
   isSubmitting = true;
   showToast("Memproses data...");
@@ -981,7 +982,6 @@ async function submitStokKeluar() {
           .maybeSingle();
 
         if (currentData) {
-          // PERUBAHAN DISINI: Pastikan sisa stok lama juga di-parse sebagai float sebelum dikurangi
           const sisaLama = parseFloat(currentData.sisa) || 0;
           const sisaBaru = sisaLama - item.jumlah;
           
@@ -1045,6 +1045,7 @@ async function submitStokKeluar() {
     isSubmitting = false;
   }
 }
+    
     // LOGIKA TAB RIWAYAT & STOK (SUPABASE)
     async function loadRiwayat() {
   const { data } = await _supabase.from('riwayat').select('*').order('created_at', { ascending: false });

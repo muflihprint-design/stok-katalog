@@ -1282,6 +1282,9 @@ function renderStok(data) {
 
   doc.save(`Transaksi_Pending_${Date.now()}.pdf`);
   showToast("PDF Berhasil diunduh!");
+     setTimeout(() => {
+      hideToast();
+    }, 1500);
 }
     
    function copyPendingToClipboard() {

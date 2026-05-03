@@ -1250,7 +1250,7 @@ function renderStok(data) {
     }]);
     
     try {
-      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");[cite: 1]
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
       items.forEach(item => {
         tableRows.push([
           item.nama,
@@ -1277,7 +1277,7 @@ function renderStok(data) {
 }
     
    function copyPendingToClipboard() {
-  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));[cite: 1]
+  const pendingData = window.lastSalesData.filter(r => !processedInvoices.has(r[0].trim()));
   if (pendingData.length === 0) return showToast("Tidak ada transaksi pending", true);
 
   // Urutkan data berdasarkan Nama Pelanggan secara alfabetis
@@ -1298,7 +1298,7 @@ function renderStok(data) {
     textToCopy += `📄 No. Transaksi: ${inv}\n`;
     
     try {
-      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");[cite: 1]
+      const items = JSON.parse(row[10]).filter(i => i.kategori !== "TTH");
       items.forEach(i => {
         textToCopy += `   • ${i.nama} (Qty: ${i.qty})\n`;
       });

@@ -1310,6 +1310,9 @@ function renderStok(data) {
 
   navigator.clipboard.writeText(textToCopy).then(() => {
     showToast("Teks berhasil disalin!");
+    setTimeout(() => {
+      hideToast();
+    }, 1500);
   });
 }
 

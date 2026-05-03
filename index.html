@@ -33,7 +33,17 @@
     .filter-chip { padding: 6px 16px; border-radius: 99px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
     .filter-chip.active { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
     .filter-chip.inactive { background: #f1f5f9; color: #64748b; }
+/* Menghilangkan tombol naik-turun di Chrome, Safari, Edge, dan Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
+/* Menghilangkan tombol naik-turun di Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
     #catalogOverlay {
       position: fixed; inset: 0; background: #f8fafc; z-index: 1000;
       display: flex; flex-direction: column; transform: translateY(100%);

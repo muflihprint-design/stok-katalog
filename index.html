@@ -262,7 +262,7 @@ input[type=number] {
     const SHEET_SALES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=2057149863&single=true&output=csv";
     const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzEY6Pazj1Vur4LboaIdAgR8LRYJqQ8e4QQGiBElyQrYxxMMTdIZaUTkwCzbwtEiRJNjA/exec"; 
  const SCRIPT_WEB_APP_URL2 = "https://script.google.com/macros/s/AKfycbzsSmY5ouKuKEdWjvuRVtH0D_UZcIi1yXoS9Nu27hCPAyLYRevUj4MPbqsAgzySVncKRQ/exec"; 
-
+    
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // STATE MANAGEMENT
@@ -1089,22 +1089,52 @@ async function submitStokKeluar() {
         </div>`).join('');
     }
 
- async function loadStok() {
-  const { data, error } = await _supabase.from('stok').select('*').order('nama', { ascending: true });
-  
-  if (error) {
-    console.error("Error loading stok:", error);
-    return;
-  }
+async function loadStok() {
+  // URL Master Barang dari Spreadsheet
+  const MASTER_BARANG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv";
 
-  masterStok = data || []; // Simpan data ke variabel global
-  
-  // Update datalist untuk autocomplete di input
-  const dl = document.getElementById('produkList');
-  dl.innerHTML = masterStok.map(item => `<option value="${item.nama}">`).join('');
-  
-  renderStok(masterStok); // Panggil fungsi render
-  dataLoaded.stok = true;
+  try {
+    // 1. AMBIL DATA DARI SUPABASE (Untuk Tabel Stok)
+    const { data: dbStok, error } = await _supabase
+      .from('stok')
+      .select('*')
+      .order('nama', { ascending: true });
+    
+    if (error) throw error;
+    masterStok = dbStok || [];
+    renderStok(masterStok); // Render tabel berdasarkan data Supabase
+
+    // 2. AMBIL DATA DARI SPREADSHEET (Untuk Saran Nama/Autocomplete)
+    const res = await fetch(MASTER_BARANG_URL + "&cache=" + Date.now());
+    const csvText = await res.text();
+    const rows = parseCSV(csvText); // Pastikan fungsi parseCSV tersedia di file Anda
+
+    // Filter: Kolom 1 (Nama), Kolom 6 (Kategori) index [5] bukan "TTH"
+    // .slice(1) untuk membuang baris header spreadsheet
+    const saranNama = rows.slice(1)
+      .filter(row => {
+        const nama = row[0] ? row[0].trim() : "";
+        const kategori = row[5] ? row[5].trim().toUpperCase() : "";
+        return nama !== "" && kategori !== "TTH";
+      })
+      .map(row => row[0].trim().toUpperCase());
+
+    // 3. UPDATE DATALIST UNTUK AUTOCOMPLETE
+    const dl = document.getElementById('produkList');
+    // Gunakan Set untuk memastikan nama tidak duplikat dan urutkan secara alfabetis
+    dl.innerHTML = [...new Set(saranNama)]
+      .sort()
+      .map(name => `<option value="${name}">`)
+      .join('');
+
+    dataLoaded.stok = true;
+
+  } catch (err) {
+    console.error("Gagal sinkronisasi data:", err);
+    // Jika spreadsheet gagal dimuat, fallback: gunakan nama dari database saja
+    const dl = document.getElementById('produkList');
+    dl.innerHTML = masterStok.map(item => `<option value="${item.nama}">`).join('');
+  }
 }
 
       async function recalculateStock() {
